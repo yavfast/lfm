@@ -435,8 +435,6 @@ local function display_file_manager()
             
             if not has_read then
                 set_color("red")
-            elseif item.is_link then
-                set_color("yellow")
             elseif item.is_dir then
                 set_color("bright_blue")
             elseif is_executable then
@@ -465,7 +463,6 @@ local function display_file_manager()
             
             -- Display link target if it's a symlink
             if item.is_link and item.link_target then
-                set_color("yellow")
                 io.write(" -> " .. item.link_target)
             end
             
