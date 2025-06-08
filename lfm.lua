@@ -268,6 +268,50 @@ local function update_scroll()
     if scroll_offset < 0 then scroll_offset = 0 end
 end
 
+-- Function to calculate string width considering Unicode characters
+local function get_string_width(str)
+    local width = 0
+    for _ in str:gmatch("[^\128-\191][\128-\191]*") do
+        width = width + 1
+    end
+    return width
+end
+
+-- Function to pad string with spaces considering Unicode characters
+local function pad_string(str, width, align_left)
+    local current_width = get_string_width(str)
+    local padding = width - current_width
+    
+    -- If string is too long, truncate it and add "~"
+    if current_width > width then
+        local truncated = ""
+        local current_pos = 1
+        local current_width = 0
+        
+        -- Iterate through Unicode characters
+        for char in str:gmatch("[^\128-\191][\128-\191]*") do
+            if current_width + 1 <= width - 1 then
+                truncated = truncated .. char
+                current_width = current_width + 1
+            else
+                break
+            end
+        end
+        
+        return truncated .. "~"
+    end
+    
+    if padding <= 0 then
+        return str
+    end
+    
+    if align_left then
+        return str .. string.rep(" ", padding)
+    else
+        return string.rep(" ", padding) .. str
+    end
+end
+
 -- Function to display file manager interface
 local function display_file_manager()
     -- Update terminal size
@@ -306,8 +350,23 @@ local function display_file_manager()
                 set_color("white")
             end
             
+            -- Convert timestamp to readable date
+            local date_str = ""
+            if item.modified then
+                local timestamp = tonumber(item.modified)
+                if timestamp then
+                    date_str = os.date("%Y-%m-%d %H:%M", timestamp)
+                end
+            end
+            
             local size_str = item.is_dir and "<DIR>" or (item.size or "0")
-            io.write(string.format("%-60s %10s", item.name, size_str))
+            
+            -- Format each column with proper Unicode handling
+            local name_padded = pad_string(item.name, 40, true)
+            local size_padded = pad_string(size_str, 10, false)
+            local date_padded = pad_string(date_str, 20, true)
+            
+            io.write(string.format("%s %s %s", name_padded, size_padded, date_padded))
             print()
             set_color("reset")
         else 
