@@ -153,6 +153,8 @@ local function get_key()
         result = "quit"
     elseif key == "v" then
         result = "view"
+    elseif key == "e" then
+        result = "edit"
     end
     
     -- Return terminal to normal mode
@@ -319,7 +321,23 @@ local function display_file_manager()
     io.write(position_info)
     set_color("reset")
     print(string.rep("─", view_width - #position_info))
-    print("Up/Down: Navigate | Enter: Open directory | v: View file | q: Quit")
+    print("Up/Down: Navigate | Enter: Open directory | v: View file | e: Edit file | q: Quit")
+end
+
+-- Function to edit file using vi
+local function edit_file(path)
+    -- Return terminal to normal mode before launching vi
+    os.execute("stty -raw echo")
+    
+    -- Clear screen before launching vi
+    clear_screen()
+    
+    -- Launch vi editor
+    os.execute("vi " .. path)
+    
+    -- Force redraw of the interface
+    clear_screen()
+    display_file_manager()
 end
 
 -- Main loop
@@ -362,6 +380,11 @@ local function main()
             local selected = items[selected_item]
             if selected and not selected.is_dir then
                 view_file(selected.path)
+            end
+        elseif key == "edit" then
+            local selected = items[selected_item]
+            if selected and not selected.is_dir then
+                edit_file(selected.path)
             end
         end
     end
