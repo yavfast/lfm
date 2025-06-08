@@ -20,13 +20,20 @@ local function get_terminal_size()
     return 24, 80
 end
 
+-- Simple cache for absolute paths
+local abs_path_cache = {}
 local function get_absolute_path(path)
+    if abs_path_cache[path] then
+        return abs_path_cache[path]
+    end
     local handle = io.popen('realpath "' .. path .. '" 2>/dev/null')
     if handle then
         local absolute_path = handle:read("*a"):gsub("\n", "")
         handle:close()
+        abs_path_cache[path] = absolute_path
         return absolute_path
     end
+    abs_path_cache[path] = path
     return path
 end
 
@@ -254,9 +261,8 @@ local function view_file(path)
     end
     
     local current_line = 1
-    local current_col = 0  -- Add horizontal scroll position
+    local current_col = 0
     local max_lines = view_height
-    
     while true do
         -- Clear content area
         for i = 1, max_lines do
@@ -284,9 +290,8 @@ local function view_file(path)
             end
         end
         
-        -- Display hint
+        -- Display hint (ASCII only)
         move_cursor(view_height + HEADER_LINES + 1, 1)
-        -- Display position info
         local position_info = string.format("[%d-%d/%d] ", current_line, current_line + max_lines - 1, #lines)
         set_color("green")
         io.write(position_info)
@@ -311,12 +316,10 @@ local function view_file(path)
         elseif key == "end" then
             current_line = math.max(1, #lines - max_lines + 1)
         elseif key == "left" then
-            current_col = math.max(0, current_col - 10)  -- Scroll left by 10 characters
+            current_col = math.max(0, current_col - 10)
         elseif key == "right" then
             current_col = current_col + 10  -- Scroll right by 10 characters
         end
-        
-        -- Ensure current_line is not negative
         current_line = math.max(1, current_line)
     end
 end
@@ -528,17 +531,16 @@ local function main()
             if selected and selected.is_dir and check_permissions(selected.permissions, "read") then
                 -- Save current position before changing directory
                 dir_positions[current_dir] = selected_item
-                
+                -- Clear absolute path cache when changing directory
+                abs_path_cache = {}
                 -- If it's a symlink, use the link target path
                 local target_path = selected.is_link and selected.link_target or selected.path
                 -- Ensure root directory is represented as "/"
                 current_dir = target_path == "" and "/" or target_path
                 absolute_path = get_absolute_path(current_dir)
-                
                 -- Load new directory items
                 items = get_directory_items(current_dir)
                 sort_items(items)
-                
                 -- Restore position if exists, otherwise start from beginning
                 selected_item = dir_positions[current_dir] or 1
                 scroll_offset = 0
@@ -558,6 +560,9 @@ local function main()
                 edit_file(target_path)
             end
         elseif key == "refresh" then
+            -- Clear absolute path cache
+            abs_path_cache = {}
+
             items = get_directory_items(current_dir)
             sort_items(items)
         end
