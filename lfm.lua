@@ -1,4 +1,13 @@
-#!/usr/bin/env lua
+#!lua
+
+--[[
+    LFM - Lua File Manager
+    A simple terminal-based file manager written in Lua.
+
+    Author: Olexandr Yavorsky
+    License: Apache 2.0
+    Version: 0.1
+]]
 
 local function get_terminal_size()
     local handle = io.popen("stty size")
