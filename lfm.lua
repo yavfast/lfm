@@ -23,16 +23,19 @@ end
 -- Simple cache for absolute paths
 local abs_path_cache = {}
 local function get_absolute_path(path)
-    if abs_path_cache[path] then
-        return abs_path_cache[path]
+    local absolute_path = abs_path_cache[path]
+    if absolute_path then
+        return absolute_path
     end
+
     local handle = io.popen('realpath "' .. path .. '" 2>/dev/null')
     if handle then
-        local absolute_path = handle:read("*a"):gsub("\n", "")
+        absolute_path = handle:read("*a"):gsub("\n", "")
         handle:close()
         abs_path_cache[path] = absolute_path
         return absolute_path
     end
+    
     abs_path_cache[path] = path
     return path
 end
