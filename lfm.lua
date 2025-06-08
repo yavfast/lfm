@@ -242,7 +242,7 @@ local function view_file(path)
     set_color("bright_blue")
     print("View file: " .. absolute_path)
     set_color("reset")
-    print(string.rep("─", view_width))
+    print(string.rep("-", view_width))
     
     -- Display content
     local lines = {}
@@ -291,7 +291,7 @@ local function view_file(path)
         set_color("green")
         io.write(position_info)
         set_color("reset")
-        print(string.rep("─", view_width - #position_info))
+        print(string.rep("-", view_width - #position_info))
         print("Up/Down: Scroll | Left/Right: Horizontal scroll | q: Return to file manager")
         
         -- Wait for key press
@@ -412,7 +412,7 @@ local function display_file_manager()
     end
     print(header)
     set_color("reset")
-    print(string.rep("─", view_width))
+    print(string.rep("-", view_width))
     
     -- Display file list
     for i = 1, view_height do
@@ -478,7 +478,7 @@ local function display_file_manager()
     set_color("green")
     io.write(position_info)
     set_color("reset")
-    print(string.rep("─", view_width - #position_info))
+    print(string.rep("-", view_width - #position_info))
     print("Up/Down: Navigate | Enter: Open directory | v: View file | e: Edit file | r: Refresh | q: Quit")
 end
 
