@@ -37,9 +37,10 @@ local dir_positions = {}
 
 local function get_directory_items(path)
     local items = {}
+    local absolute_path = get_absolute_path(path)
     
     if path ~= "/" then
-        local parent_path = path:match("(.*)/[^/]*$") or "/"
+        local parent_path = absolute_path:match("(.*)/[^/]*$") or "/"
         table.insert(items, {
             name = "..",
             path = parent_path,
@@ -173,21 +174,25 @@ local function view_file(path)
     local content = handle:read("*a")
     handle:close()
     
+    -- Get absolute path for the header
+    local absolute_path = get_absolute_path(path)
+    
     -- Clear screen
     clear_screen()
     
     -- Display header
     set_color("bright_blue")
-    print("View file: " .. path)
+    print("View file: " .. absolute_path)
     set_color("reset")
     print(string.rep("─", view_width))
     
     -- Display content
     local lines = {}
-    for line in content:gmatch("[^\r\n]+") do
-        if line then
-            table.insert(lines, line)
-        end
+    -- Split content into lines preserving empty lines
+    for line in content:gmatch("[^\r\n]*\r?\n?") do
+        -- Remove trailing newline if present
+        line = line:gsub("\r?\n$", "")
+        table.insert(lines, line)
     end
     
     local current_line = 1
