@@ -292,7 +292,7 @@ local function view_file(path)
         io.write(position_info)
         set_color("reset")
         print(string.rep("=", view_width - #position_info))
-        print("Up/Down: Scroll | Left/Right: Horizontal scroll | q: Return to file manager")
+        print("Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back")
         
         -- Wait for key press
         local key = get_key()
@@ -565,4 +565,4 @@ local function main()
 end
 
 -- Run program
-main() 
+main()
