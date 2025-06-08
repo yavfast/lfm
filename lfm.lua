@@ -12,7 +12,7 @@ local function get_terminal_size()
 end
 
 local function get_absolute_path(path)
-    local handle = io.popen('realpath "' .. path .. '"')
+    local handle = io.popen('realpath "' .. path .. '" 2>/dev/null')
     if handle then
         local absolute_path = handle:read("*a"):gsub("\n", "")
         handle:close()
@@ -69,12 +69,22 @@ local function get_directory_items(path)
                 if filename ~= "." and filename ~= ".." then
                     if is_link then
                         -- Extract link target from the link_info
-                        link_target = link_info:match("'([^']+)'")
+                        link_target = link_info:match("'[^']+'%s*->%s*'([^']+)'")
                         if link_target then
+                            -- Handle different link_target formats
+                            if not link_target:match("^/") then
+                                -- If it's a relative path, add current path
+                                if path == "/" then
+                                    link_target = path .. link_target
+                                else
+                                    link_target = path .. "/" .. link_target
+                                end
+                            end
+                            
                             -- Get absolute path of the link target
-                            local absolute_target = get_absolute_path(link_target)
+                            link_target = get_absolute_path(link_target)
                             -- Check if target is a directory
-                            local target_handle = io.popen('LANG=C stat -c "%F" "' .. absolute_target .. '" 2>/dev/null')
+                            local target_handle = io.popen('LANG=C stat -c "%F" "' .. link_target .. '" 2>/dev/null')
                             if target_handle then
                                 local target_type = target_handle:read("*a"):gsub("\n", "")
                                 target_handle:close()
