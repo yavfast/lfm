@@ -39,31 +39,64 @@ local function get_directory_items(path)
     local items = {}
     local absolute_path = get_absolute_path(path)
     
-    if path ~= "/" then
+    if path ~= "/" and absolute_path ~= "/" then
         local parent_path = absolute_path:match("(.*)/[^/]*$") or "/"
-        table.insert(items, {
-            name = "..",
-            path = parent_path,
-            is_dir = true,
-            permissions = "",
-            size = "0",
-            modified = ""
-        })
+        if parent_path ~= "/" then
+            table.insert(items, {
+                name = "..",
+                path = parent_path,
+                is_dir = true,
+                is_link = false,
+                link_target = nil,
+                permissions = "-r--r--r--",
+                size = "0",
+                modified = ""
+            })
+        end
     end
     
-    local handle = io.popen('LANG=C stat -c "%F|%n|%s|%Y|%A" "' .. path .. '"/* 2>/dev/null')
+    local handle = io.popen('LANG=C stat -c "%F|%n|%s|%Y|%A|%N" "' .. path .. '"/* "' .. path .. '"/.* 2>/dev/null')
     if handle then
         for line in handle:lines() do
-            local file_type, name, size, timestamp, permissions = line:match("([^|]+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)")
+            local file_type, name, size, timestamp, permissions, link_info = line:match("([^|]+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)")
             if name then
                 -- Extract only filename without path
                 local filename = name:match("([^/]+)$")
                 local is_dir = file_type:match("directory")
+                local is_link = not is_dir and file_type:match("symbolic link")
+                local link_target = nil
+                
                 if filename ~= "." and filename ~= ".." then
+                    if is_link then
+                        -- Extract link target from the link_info
+                        link_target = link_info:match("'([^']+)'")
+                        if link_target then
+                            -- Get absolute path of the link target
+                            local absolute_target = get_absolute_path(link_target)
+                            -- Check if target is a directory
+                            local target_handle = io.popen('LANG=C stat -c "%F" "' .. absolute_target .. '" 2>/dev/null')
+                            if target_handle then
+                                local target_type = target_handle:read("*a"):gsub("\n", "")
+                                target_handle:close()
+                                is_dir = target_type:match("directory")
+                            end
+                        end
+                    end
+                    
+                    -- Form path with root directory
+                    local item_path
+                    if path == "/" then
+                        item_path = path .. filename
+                    else
+                        item_path = path .. "/" .. filename
+                    end
+                    
                     table.insert(items, {
                         name = filename,
-                        path = path .. "/" .. filename,
+                        path = item_path,
                         is_dir = is_dir,
+                        is_link = is_link,
+                        link_target = link_target,
                         permissions = permissions,
                         size = size,
                         modified = timestamp
@@ -78,6 +111,10 @@ end
 
 local function sort_items(items)
     table.sort(items, function(a, b)
+        -- ".." always first
+        if a.name == ".." then return true end
+        if b.name == ".." then return false end
+        
         if a.is_dir and not b.is_dir then
             return true
         elseif not a.is_dir and b.is_dir then
@@ -156,6 +193,8 @@ local function get_key()
         result = "view"
     elseif key == "e" then
         result = "edit"
+    elseif key == "r" then
+        result = "refresh"
     end
     
     -- Return terminal to normal mode
@@ -317,6 +356,25 @@ local function pad_string(str, width, align_left)
     end
 end
 
+local function check_permissions(permissions, action)
+    if not permissions then return false end
+    
+    local user_perms = {
+        read = permissions:sub(2, 4),
+        write = permissions:sub(5, 7),
+        execute = permissions:sub(8, 10)
+    }
+    
+    if action == "read" then
+        return user_perms.read:match("r")
+    elseif action == "write" then
+        return user_perms.write:match("w")
+    elseif action == "execute" then
+        return user_perms.execute:match("x")
+    end
+    return false
+end
+
 -- Function to display file manager interface
 local function display_file_manager()
     -- Update terminal size
@@ -349,8 +407,18 @@ local function display_file_manager()
                 io.write("  ")
             end
             
-            if item.is_dir then
+            -- Check if we have read permissions
+            local has_read = check_permissions(item.permissions, "read")
+            local is_executable = check_permissions(item.permissions, "execute")
+            
+            if not has_read then
+                set_color("red")
+            elseif item.is_link then
+                set_color("yellow")
+            elseif item.is_dir then
                 set_color("bright_blue")
+            elseif is_executable then
+                set_color("green")
             else
                 set_color("white")
             end
@@ -372,6 +440,13 @@ local function display_file_manager()
             local date_padded = pad_string(date_str, 20, true)
             
             io.write(string.format("%s %s %s", name_padded, size_padded, date_padded))
+            
+            -- Display link target if it's a symlink
+            if item.is_link and item.link_target then
+                set_color("yellow")
+                io.write(" -> " .. item.link_target)
+            end
+            
             print()
             set_color("reset")
         else 
@@ -385,7 +460,7 @@ local function display_file_manager()
     io.write(position_info)
     set_color("reset")
     print(string.rep("─", view_width - #position_info))
-    print("Up/Down: Navigate | Enter: Open directory | v: View file | e: Edit file | q: Quit")
+    print("Up/Down: Navigate | Enter: Open directory | v: View file | e: Edit file | r: Refresh | q: Quit")
 end
 
 -- Function to edit file using vi
@@ -406,9 +481,11 @@ end
 
 -- Main loop
 local function main()
+    -- Initial load of directory items
+    items = get_directory_items(current_dir)
+    sort_items(items)
+    
     while true do
-        items = get_directory_items(current_dir)
-        sort_items(items)
         display_file_manager()
         
         local key = get_key()
@@ -429,12 +506,19 @@ local function main()
             selected_item = #items
         elseif key == "enter" then
             local selected = items[selected_item]
-            if selected and selected.is_dir then
+            if selected and selected.is_dir and check_permissions(selected.permissions, "read") then
                 -- Save current position before changing directory
                 dir_positions[current_dir] = selected_item
                 
-                current_dir = selected.path
+                -- If it's a symlink, use the link target path
+                local target_path = selected.is_link and selected.link_target or selected.path
+                -- Ensure root directory is represented as "/"
+                current_dir = target_path == "" and "/" or target_path
                 absolute_path = get_absolute_path(current_dir)
+                
+                -- Load new directory items
+                items = get_directory_items(current_dir)
+                sort_items(items)
                 
                 -- Restore position if exists, otherwise start from beginning
                 selected_item = dir_positions[current_dir] or 1
@@ -442,14 +526,21 @@ local function main()
             end
         elseif key == "view" then
             local selected = items[selected_item]
-            if selected and not selected.is_dir then
-                view_file(selected.path)
+            if selected and not selected.is_dir and check_permissions(selected.permissions, "read") then
+                -- If it's a symlink, use the link target path
+                local target_path = selected.is_link and selected.link_target or selected.path
+                view_file(target_path)
             end
         elseif key == "edit" then
             local selected = items[selected_item]
-            if selected and not selected.is_dir then
-                edit_file(selected.path)
+            if selected and not selected.is_dir and check_permissions(selected.permissions, "write") then
+                -- If it's a symlink, use the link target path
+                local target_path = selected.is_link and selected.link_target or selected.path
+                edit_file(target_path)
             end
+        elseif key == "refresh" then
+            items = get_directory_items(current_dir)
+            sort_items(items)
         end
     end
 end
