@@ -192,6 +192,13 @@ local function set_color(color)
     io.write("\27[" .. (colors[color] or "0") .. "m")
 end
 
+-- Function to draw colored text
+local function draw_text_colored(color, text)
+    set_color(color)
+    io.write(text)
+    set_color("reset")
+end
+
 -- Function to get key press
 local function get_key()
     -- Set terminal to "raw" mode
@@ -656,9 +663,10 @@ local function display_file_manager()
     move_cursor(view_height + HEADER_LINES + 1, 2)
     set_color("green")
     io.write(position_info1)
-    set_color("white")
+
     local pad1 = panel1.view_width - #position_info1
     if pad1 < 0 then pad1 = 0 end -- Ensure non-negative padding
+    set_color("white")
     io.write(string.rep("=", pad1))
 
     -- Draw vertical separator between panels
@@ -671,9 +679,10 @@ local function display_file_manager()
     move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 3)
     set_color("green")
     io.write(position_info2)
-    set_color("white")
+
     local pad2 = panel2.view_width - #position_info2
     if pad2 < 0 then pad2 = 0 end -- Ensure non-negative padding
+    set_color("white")
     io.write(string.rep("=", pad2))
 
     -- Draw right vertical separator
