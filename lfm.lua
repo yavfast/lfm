@@ -465,12 +465,68 @@ local function get_ram_info()
     return "RAM: N/A"
 end
 
+-- Function to draw a single row of a panel
+local function draw_panel_row(panel, row_index, start_col, is_active, panel_view_width)
+    local item_index = row_index + panel.scroll_offset
+    local item = panel.items[item_index]
+
+    -- Draw panel content
+    move_cursor(HEADER_LINES + row_index, start_col)
+    if item then
+        if item_index == panel.selected_item and is_active then
+            draw_text_colored("bright_white", ">")
+        else
+            draw_text(" ")
+        end
+
+        -- Check if we have read permissions
+        local has_read = check_permissions(item.permissions, "read")
+        local is_executable = check_permissions(item.permissions, "execute")
+
+        if not has_read then
+            draw_text_colored("red", " ")
+        elseif item.is_dir then
+            draw_text_colored("bright_white", "/")
+        elseif is_executable then
+            draw_text_colored("green", "*")
+        else
+            draw_text_colored("white", " ")
+        end
+
+        -- Convert timestamp to readable date
+        local date_str = ""
+        if item.modified then
+            local timestamp = tonumber(item.modified)
+            if timestamp then
+                date_str = os.date("%Y-%m-%d %H:%M", timestamp)
+            end
+        end
+
+        local size_str = item.is_dir and "<DIR>" or (item.size or "0")
+
+        -- Format each column with proper Unicode handling
+        local name_padded = pad_string(item.name, math.floor(panel_view_width * 0.4), true)
+        local size_padded = pad_string(size_str, math.floor(panel_view_width * 0.2), false)
+        local date_padded = pad_string(date_str, math.floor(panel_view_width * 0.3), true)
+
+        draw_text(string.format("%s %s %s", name_padded, size_padded, date_padded))
+
+        -- Display link target if it's a symlink
+        if item.is_link and item.link_target then
+            draw_text(" -> " .. item.link_target)
+        end
+
+    else
+        draw_text(string.rep(" ", panel_view_width))
+    end
+end
+
 -- Function to display file manager interface
 local function display_file_manager()
     -- Update terminal size
     view_height, view_width = get_terminal_size()
     view_height = view_height - HEADER_LINES - FOOTER_LINES - 1
-    
+
     -- Calculate panel widths considering 3 vertical separators
     local usable_width = view_width - 3 -- Account for left, middle, and right separators
     panel1.view_width = math.floor(usable_width / 2)
@@ -479,9 +535,9 @@ local function display_file_manager()
     -- Update scroll position for both panels
     update_scroll(panel1)
     update_scroll(panel2)
-    
+
     clear_screen()
-    
+
     -- Display RAM information in the header (LFM left, RAM right)
     local lfm_info = "Lua File Manager (v0.1)"
     local ram_info = get_ram_info()
@@ -515,129 +571,29 @@ local function display_file_manager()
     draw_text_colored("white", "|") -- Right separator
 
     draw_text("\n")
-    
+
     -- Display file list
     for i = 1, view_height do
-        local item_index1 = i + panel1.scroll_offset
-        local item1 = panel1.items[item_index1]
-
-        local item_index2 = i + panel2.scroll_offset
-        local item2 = panel2.items[item_index2]
-
         -- Draw left vertical separator
         move_cursor(HEADER_LINES + i, 1)
         draw_text_colored("white", "|")
 
-        -- Draw panel 1
-        move_cursor(HEADER_LINES + i, 2)
-        if item1 then
-            if item_index1 == panel1.selected_item and active_panel == 1 then
-                draw_text_colored("bright_white", ">")
-            else
-                draw_text(" ")
-            end
-            
-            -- Check if we have read permissions
-            local has_read1 = check_permissions(item1.permissions, "read")
-            local is_executable1 = check_permissions(item1.permissions, "execute")
-            
-            if not has_read1 then
-                draw_text_colored("red", " ")
-            elseif item1.is_dir then
-                draw_text_colored("bright_white", "/")
-            elseif is_executable1 then
-                draw_text_colored("green", "*")
-            else
-                draw_text_colored("white", " ")
-            end
-            
-            -- Convert timestamp to readable date
-            local date_str1 = ""
-            if item1.modified then
-                local timestamp1 = tonumber(item1.modified)
-                if timestamp1 then
-                    date_str1 = os.date("%Y-%m-%d %H:%M", timestamp1)
-                end
-            end
-            
-            local size_str1 = item1.is_dir and "<DIR>" or (item1.size or "0")
-            
-            -- Format each column with proper Unicode handling
-            local name_padded1 = pad_string(item1.name, math.floor(panel1.view_width * 0.4), true)
-            local size_padded1 = pad_string(size_str1, math.floor(panel1.view_width * 0.2), false)
-            local date_padded1 = pad_string(date_str1, math.floor(panel1.view_width * 0.3), true)
-            
-            draw_text(string.format("%s %s %s", name_padded1, size_padded1, date_padded1))
-            
-            -- Display link target if it's a symlink
-            if item1.is_link and item1.link_target then
-                draw_text(" -> " .. item1.link_target)
-            end
-            
-        else 
-            draw_text(string.rep(" ", panel1.view_width))
-        end
+        -- Draw panel 1 row
+        draw_panel_row(panel1, i, 2, active_panel == 1, panel1.view_width)
 
         -- Add vertical separator between panels
         move_cursor(HEADER_LINES + i, panel1.view_width + 2)
         draw_text_colored("white", "|")
 
-        -- Draw panel 2
-        move_cursor(HEADER_LINES + i, panel1.view_width + 3)
-        if item2 then
-             if item_index2 == panel2.selected_item and active_panel == 2 then
-                draw_text_colored("bright_white", ">")
-            else
-                draw_text(" ")
-            end
-            
-            -- Check if we have read permissions
-            local has_read2 = check_permissions(item2.permissions, "read")
-            local is_executable2 = check_permissions(item2.permissions, "execute")
-            
-            if not has_read2 then
-                draw_text_colored("red", " ")
-            elseif item2.is_dir then
-                draw_text_colored("bright_white", "/")
-            elseif is_executable2 then
-                draw_text_colored("green", "*")
-            else
-                draw_text_colored("white", " ")
-            end
-            
-            -- Convert timestamp to readable date
-            local date_str2 = ""
-            if item2.modified then
-                local timestamp2 = tonumber(item2.modified)
-                if timestamp2 then
-                    date_str2 = os.date("%Y-%m-%d %H:%M", timestamp2)
-                end
-            end
-            
-            local size_str2 = item2.is_dir and "<DIR>" or (item2.size or "0")
-            
-            -- Format each column with proper Unicode handling
-            local name_padded2 = pad_string(item2.name, math.floor(panel2.view_width * 0.4), true)
-            local size_padded2 = pad_string(size_str2, math.floor(panel2.view_width * 0.2), false)
-            local date_padded2 = pad_string(date_str2, math.floor(panel2.view_width * 0.3), true)
-            
-            draw_text(string.format("%s %s %s", name_padded2, size_padded2, date_padded2))
-            
-            -- Display link target if it's a symlink
-            if item2.is_link and item2.link_target then
-                draw_text(" -> " .. item2.link_target)
-            end
-            
-        else
-            draw_text(string.rep(" ", panel2.view_width))
-        end
+        -- Draw panel 2 row
+        draw_panel_row(panel2, i, panel1.view_width + 3, active_panel == 2, panel2.view_width)
 
         -- Draw right vertical separator
         move_cursor(HEADER_LINES + i, view_width)
         draw_text_colored("white", "|")
         draw_text("\n")
     end
-    
+
     -- Display hint with position info
     move_cursor(view_height + HEADER_LINES + 1, 1)
     local position_info1 = string.format("[%d/%d]", panel1.selected_item - 1, #panel1.items - 1)
