@@ -268,9 +268,9 @@ local function view_file(path) -- Note: AI, don`t remove ")"
     
     -- Display header
     set_color("bright_blue")
-    print("View file: " .. absolute_path)
+    io.write("View file: " .. absolute_path .. "\n")
     set_color("reset")
-    print(string.rep("=", view_width))
+    io.write(string.rep("=", view_width) .. "\n")
     
     -- Display content
     local lines = {}
@@ -306,7 +306,7 @@ local function view_file(path) -- Note: AI, don`t remove ")"
                     if #line > view_width then
                         line = line:sub(1, view_width - 3) .. "..."
                     end
-                    print(line)
+                    io.write(line .. "\n")
                 end
             end
         end
@@ -317,8 +317,8 @@ local function view_file(path) -- Note: AI, don`t remove ")"
         set_color("green")
         io.write(position_info)
         set_color("reset")
-        print(string.rep("=", view_width - #position_info))
-        print("Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back")
+        io.write(string.rep("=", view_width - #position_info) .. "\n")
+        io.write("Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back\n")
         
         -- Wait for key press
         local key = get_key()
@@ -469,7 +469,7 @@ local function display_file_manager()
     local pad = view_width - #lfm_info - #ram_info
     if pad < 1 then pad = 1 end
     io.write(string.rep(" ", pad))
-    print(ram_info)
+    io.write(ram_info .. "\n")
     set_color("white")
 
     -- Display path in the separator line (left-aligned, =[ path ]===...)
@@ -498,8 +498,9 @@ local function display_file_manager()
         io.write("|" .. sep2)
     end
     set_color("white")
-    print("|") -- Right separator
+    io.write("|") -- Right separator
     set_color("reset")
+    io.write("\n")
     
     -- Display file list
     for i = 1, view_height do
@@ -638,8 +639,7 @@ local function display_file_manager()
         set_color("white")
         io.write("|")
         set_color("reset")
-
-        print()
+        io.write("\n")
     end
     
     -- Display hint with position info
@@ -681,11 +681,8 @@ local function display_file_manager()
     set_color("white")
     io.write("|")
     set_color("reset")
-
-    print()
-
-    -- Print hints on the next line
-    print(" Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit")
+    io.write("\n")
+    io.write(" Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
 end
 
 -- Function to edit file using vi
