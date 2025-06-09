@@ -177,26 +177,43 @@ local function move_cursor(row, col)
     io.write(string.format("\27[%d;%dH", row, col))
 end
 
+local colors = {
+    reset = "0",
+    black = "30",
+    red = "31",
+    green = "32",
+    blue = "34",
+    yellow = "33",
+    white = "37",
+    gray = "90",
+    silver = "37",
+    bright_red = "91",
+    bright_green = "92",
+    bright_yellow = "93",
+    bright_blue = "94",
+    bright_white = "97"
+}
+
 -- Function to set text color
 local function set_color(color)
-    local colors = {
-        reset = "0",
-        red = "31",
-        green = "32",
-        blue = "34",
-        yellow = "33",
-        white = "37",
-        bright_blue = "94",
-        bright_white = "97"
-    }
     io.write("\27[" .. (colors[color] or "0") .. "m")
+end
+
+-- Function to draw colored text
+local function draw_text(text)
+    io.write(text)
+end
+
+-- Function to draw colored text
+local function draw_text_xy(row, col, text)
+    move_cursor(row, col)
+    draw_text(text)
 end
 
 -- Function to draw colored text
 local function draw_text_colored(color, text)
     set_color(color)
-    io.write(text)
-    set_color("reset")
+    draw_text(text)
 end
 
 -- Function to get key press
@@ -274,11 +291,11 @@ local function view_file(path) -- Note: AI, don`t remove ")"
     clear_screen()
     
     -- Display header
-    set_color("bright_blue")
-    io.write("View file: " .. absolute_path .. "\n")
-    set_color("reset")
-    io.write(string.rep("=", view_width) .. "\n")
+    draw_text_colored("bright_blue", "View file: " .. absolute_path .. "\n")
+    draw_text_colored("gray", string.rep("=", view_width) .. "\n")
     
+    set_color("white")
+
     -- Display content
     local lines = {}
     -- Split content into lines preserving empty lines
@@ -295,7 +312,7 @@ local function view_file(path) -- Note: AI, don`t remove ")"
         -- Clear content area
         for i = 1, max_lines do
             move_cursor(HEADER_LINES + i, 1)
-            io.write(string.rep(" ", view_width))
+            draw_text(string.rep(" ", view_width))
         end
         
         -- Display current portion of content
@@ -313,7 +330,7 @@ local function view_file(path) -- Note: AI, don`t remove ")"
                     if #line > view_width then
                         line = line:sub(1, view_width - 3) .. "..."
                     end
-                    io.write(line .. "\n")
+                    draw_text(line .. "\n")
                 end
             end
         end
@@ -321,11 +338,9 @@ local function view_file(path) -- Note: AI, don`t remove ")"
         -- Display hint (ASCII only)
         move_cursor(view_height + HEADER_LINES + 1, 1)
         local position_info = string.format("[%d-%d/%d] ", current_line, current_line + max_lines - 1, #lines)
-        set_color("green")
-        io.write(position_info)
-        set_color("reset")
-        io.write(string.rep("=", view_width - #position_info) .. "\n")
-        io.write("Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back\n")
+        draw_text_colored("green", position_info)
+        draw_text_colored("gray", string.rep("=", view_width - #position_info) .. "\n")
+        draw_text_colored("gray", "Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back\n")
         
         -- Wait for key press
         local key = get_key()
@@ -470,14 +485,11 @@ local function display_file_manager()
     -- Display RAM information in the header (LFM left, RAM right)
     local lfm_info = "Lua File Manager (v0.1)"
     local ram_info = get_ram_info()
-    set_color("bright_white")
-    io.write(lfm_info)
-    set_color("green")
+    draw_text_colored("bright_white", lfm_info)
     local pad = view_width - #lfm_info - #ram_info
     if pad < 1 then pad = 1 end
-    io.write(string.rep(" ", pad))
-    io.write(ram_info .. "\n")
-    set_color("white")
+    draw_text_colored("black", string.rep(" ", pad))
+    draw_text_colored("green", ram_info .. "\n")
 
     -- Display path in the separator line (left-aligned, =[ path ]===...)
     local path_str1 = panel1.absolute_path
@@ -494,20 +506,15 @@ local function display_file_manager()
 
     -- Highlight active panel path
     if active_panel == 1 then
-        set_color("bright_white")
-        io.write("|" .. sep1)
-        set_color("white")
-        io.write("|" .. sep2)
+        draw_text_colored("bright_white", "|" .. sep1)
+        draw_text_colored("white", "|" .. sep2)
     else
-        set_color("white")
-        io.write("|" .. sep1)
-        set_color("bright_white")
-        io.write("|" .. sep2)
+        draw_text_colored("white", "|" .. sep1)
+        draw_text_colored("bright_white", "|" .. sep2)
     end
-    set_color("white")
-    io.write("|") -- Right separator
-    set_color("reset")
-    io.write("\n")
+    draw_text_colored("white", "|") -- Right separator
+
+    draw_text("\n")
     
     -- Display file list
     for i = 1, view_height do
@@ -519,18 +526,15 @@ local function display_file_manager()
 
         -- Draw left vertical separator
         move_cursor(HEADER_LINES + i, 1)
-        set_color("white")
-        io.write("|")
-        set_color("reset")
+        draw_text_colored("white", "|")
 
         -- Draw panel 1
         move_cursor(HEADER_LINES + i, 2)
         if item1 then
             if item_index1 == panel1.selected_item and active_panel == 1 then
-                set_color("bright_white")
-                io.write(">")
+                draw_text_colored("bright_white", ">")
             else
-                io.write(" ")
+                draw_text(" ")
             end
             
             -- Check if we have read permissions
@@ -538,17 +542,13 @@ local function display_file_manager()
             local is_executable1 = check_permissions(item1.permissions, "execute")
             
             if not has_read1 then
-                set_color("red")
-                io.write(" ")
+                draw_text_colored("red", " ")
             elseif item1.is_dir then
-                set_color("bright_white")
-                io.write("/")
+                draw_text_colored("bright_white", "/")
             elseif is_executable1 then
-                set_color("green")
-                io.write("*")
+                draw_text_colored("green", "*")
             else
-                set_color("white")
-                io.write(" ")
+                draw_text_colored("white", " ")
             end
             
             -- Convert timestamp to readable date
@@ -567,32 +567,28 @@ local function display_file_manager()
             local size_padded1 = pad_string(size_str1, math.floor(panel1.view_width * 0.2), false)
             local date_padded1 = pad_string(date_str1, math.floor(panel1.view_width * 0.3), true)
             
-            io.write(string.format("%s %s %s", name_padded1, size_padded1, date_padded1))
+            draw_text(string.format("%s %s %s", name_padded1, size_padded1, date_padded1))
             
             -- Display link target if it's a symlink
             if item1.is_link and item1.link_target then
-                io.write(" -> " .. item1.link_target)
+                draw_text(" -> " .. item1.link_target)
             end
             
-            set_color("reset")
         else 
-            io.write(string.rep(" ", panel1.view_width))
+            draw_text(string.rep(" ", panel1.view_width))
         end
 
         -- Add vertical separator between panels
         move_cursor(HEADER_LINES + i, panel1.view_width + 2)
-        set_color("white")
-        io.write("|")
-        set_color("reset")
+        draw_text_colored("white", "|")
 
         -- Draw panel 2
         move_cursor(HEADER_LINES + i, panel1.view_width + 3)
         if item2 then
              if item_index2 == panel2.selected_item and active_panel == 2 then
-                set_color("bright_white")
-                io.write(">")
+                draw_text_colored("bright_white", ">")
             else
-                io.write(" ")
+                draw_text(" ")
             end
             
             -- Check if we have read permissions
@@ -600,17 +596,13 @@ local function display_file_manager()
             local is_executable2 = check_permissions(item2.permissions, "execute")
             
             if not has_read2 then
-                set_color("red")
-                io.write(" ")
+                draw_text_colored("red", " ")
             elseif item2.is_dir then
-                set_color("bright_white")
-                io.write("/")
+                draw_text_colored("bright_white", "/")
             elseif is_executable2 then
-                set_color("green")
-                io.write("*")
+                draw_text_colored("green", "*")
             else
-                set_color("white")
-                io.write(" ")
+                draw_text_colored("white", " ")
             end
             
             -- Convert timestamp to readable date
@@ -629,24 +621,21 @@ local function display_file_manager()
             local size_padded2 = pad_string(size_str2, math.floor(panel2.view_width * 0.2), false)
             local date_padded2 = pad_string(date_str2, math.floor(panel2.view_width * 0.3), true)
             
-            io.write(string.format("%s %s %s", name_padded2, size_padded2, date_padded2))
+            draw_text(string.format("%s %s %s", name_padded2, size_padded2, date_padded2))
             
             -- Display link target if it's a symlink
             if item2.is_link and item2.link_target then
-                io.write(" -> " .. item2.link_target)
+                draw_text(" -> " .. item2.link_target)
             end
             
-            set_color("reset")
         else
-             io.write(string.rep(" ", panel2.view_width))
+            draw_text(string.rep(" ", panel2.view_width))
         end
 
         -- Draw right vertical separator
         move_cursor(HEADER_LINES + i, view_width)
-        set_color("white")
-        io.write("|")
-        set_color("reset")
-        io.write("\n")
+        draw_text_colored("white", "|")
+        draw_text("\n")
     end
     
     -- Display hint with position info
@@ -655,43 +644,33 @@ local function display_file_manager()
     local position_info2 = string.format("[%d/%d]", panel2.selected_item - 1, #panel2.items - 1)
 
     -- Draw left vertical separator
-    set_color("white")
-    io.write("|")
-    set_color("reset")
+    draw_text_colored("white", "|")
 
     -- Draw panel 1 position info and padding
     move_cursor(view_height + HEADER_LINES + 1, 2)
-    set_color("green")
-    io.write(position_info1)
+    draw_text_colored("green", position_info1)
 
     local pad1 = panel1.view_width - #position_info1
     if pad1 < 0 then pad1 = 0 end -- Ensure non-negative padding
-    set_color("white")
-    io.write(string.rep("=", pad1))
+    draw_text_colored("white", string.rep("=", pad1))
 
     -- Draw vertical separator between panels
     move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 2)
-    set_color("white")
-    io.write("|")
-    set_color("reset")
+    draw_text_colored("white", "|")
 
     -- Draw panel 2 position info and padding
     move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 3)
-    set_color("green")
-    io.write(position_info2)
+    draw_text_colored("green", position_info2)
 
     local pad2 = panel2.view_width - #position_info2
     if pad2 < 0 then pad2 = 0 end -- Ensure non-negative padding
-    set_color("white")
-    io.write(string.rep("=", pad2))
+    draw_text_colored("white", string.rep("=", pad2))
 
     -- Draw right vertical separator
     move_cursor(view_height + HEADER_LINES + 1, view_width)
-    set_color("white")
-    io.write("|")
-    set_color("reset")
-    io.write("\n")
-    io.write(" Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
+    draw_text_colored("white", "|")
+    draw_text("\n")
+    draw_text_colored("gray", " Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
 end
 
 -- Function to edit file using vi
