@@ -9,11 +9,18 @@
     Version: 0.1
 ]]
 
+-- Execute a system command with LANG=C and return its output as string
+local function exec_command_output(command)
+    local handle = io.popen('LANG=C ' .. command)
+    if not handle then return nil end
+    local output = handle:read("*a")
+    handle:close()
+    return output
+end
+
 local function get_terminal_size()
-    local handle = io.popen("stty size")
-    if handle then
-        local output = handle:read("*a")
-        handle:close()
+    local output = exec_command_output("stty size")
+    if output then
         local rows, cols = output:match("(%d+)%s+(%d+)")
         return tonumber(rows) or 24, tonumber(cols) or 80
     end
@@ -27,15 +34,12 @@ local function get_absolute_path(path)
     if absolute_path then
         return absolute_path
     end
-
-    local handle = io.popen('realpath "' .. path .. '" 2>/dev/null')
-    if handle then
-        absolute_path = handle:read("*a"):gsub("\n", "")
-        handle:close()
+    local output = exec_command_output('realpath "' .. path .. '" 2>/dev/null')
+    if output then
+        absolute_path = output:gsub("\n", "")
         abs_path_cache[path] = absolute_path
         return absolute_path
     end
-    
     abs_path_cache[path] = path
     return path
 end
@@ -400,6 +404,31 @@ local function check_permissions(permissions, action)
     return false
 end
 
+-- Function to get RAM information
+local function get_ram_info()
+    local output = exec_command_output("free")
+    if output then
+        local total, used = output:match("Mem:%s+(%d+)%s+(%d+)")
+        if total and used then
+            total = tonumber(total)
+            used = tonumber(used)
+            -- Convert to human readable format
+            local function format_size(bytes)
+                local units = {'KB', 'MB', 'GB'}
+                local size = bytes
+                local unit_index = 1
+                while size > 1024 and unit_index < #units do
+                    size = size / 1024
+                    unit_index = unit_index + 1
+                end
+                return string.format("%.1f %s", size, units[unit_index])
+            end
+            return "RAM: " .. format_size(used) .. " / " .. format_size(total)
+        end
+    end
+    return "RAM: N/A"
+end
+
 -- Function to display file manager interface
 local function display_file_manager()
     -- Update terminal size
@@ -410,15 +439,27 @@ local function display_file_manager()
     update_scroll()
     
     clear_screen()
-    set_color("bright_blue")
-    -- Limit header length
-    local header = "LFM - " .. absolute_path
-    if #header > view_width then
-        header = "LFM - ..." .. absolute_path:sub(-(view_width - 10))
+    
+    -- Display RAM information in the header (LFM left, RAM right)
+    local lfm_info = "Lua File Manager (v0.1)"
+    local ram_info = get_ram_info()
+    set_color("bright_white")
+    io.write(lfm_info)
+    set_color("green")
+    local pad = view_width - #lfm_info - #ram_info
+    if pad < 1 then pad = 1 end
+    io.write(string.rep(" ", pad))
+    print(ram_info)
+    set_color("white")
+
+    -- Display path in the separator line (left-aligned, =[ path ]===...)
+    local path_str = absolute_path
+    if #path_str > view_width - 8 then
+        path_str = "..." .. path_str:sub(-(view_width - 11))
     end
-    print(header)
+    local sep = "[" .. path_str .. "]" .. string.rep("=", math.max(0, view_width - (#path_str + 2)))
+    print(sep)
     set_color("reset")
-    print(string.rep("=", view_width))
     
     -- Display file list
     for i = 1, view_height do
@@ -427,9 +468,9 @@ local function display_file_manager()
         if item then
             if item_index == selected_item then
                 set_color("bright_white")
-                io.write("> ")
+                io.write(">")
             else
-                io.write("  ")
+                io.write(" ")
             end
             
             -- Check if we have read permissions
@@ -438,12 +479,16 @@ local function display_file_manager()
             
             if not has_read then
                 set_color("red")
+                io.write(" ")
             elseif item.is_dir then
-                set_color("bright_blue")
+                set_color("bright_white")
+                io.write("/")
             elseif is_executable then
                 set_color("green")
+                io.write("*")
             else
                 set_color("white")
+                io.write(" ")
             end
             
             -- Convert timestamp to readable date
@@ -460,7 +505,7 @@ local function display_file_manager()
             -- Format each column with proper Unicode handling
             local name_padded = pad_string(item.name, 40, true)
             local size_padded = pad_string(size_str, 10, false)
-            local date_padded = pad_string(date_str, 20, true)
+            local date_padded = pad_string(date_str, 16, true)
             
             io.write(string.format("%s %s %s", name_padded, size_padded, date_padded))
             
@@ -480,9 +525,9 @@ local function display_file_manager()
     local position_info = string.format("[%d/%d] ", selected_item - 1, #items - 1)
     set_color("green")
     io.write(position_info)
-    set_color("reset")
+    set_color("white")
     print(string.rep("=", view_width - #position_info))
-    print("Up/Down: Navigate | Enter: Open directory | v: View file | e: Edit file | r: Refresh | q: Quit")
+    print("Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | q: Quit")
 end
 
 -- Function to edit file using vi
