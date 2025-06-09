@@ -465,6 +465,80 @@ local function get_ram_info()
     return "RAM: N/A"
 end
 
+-- Function to draw the footer section (position info and hints)
+local function draw_footer(panel1, panel2, view_height, view_width)
+    -- Display hint with position info
+    move_cursor(view_height + HEADER_LINES + 1, 1)
+    local position_info1 = string.format("[%d/%d]", panel1.selected_item - 1, #panel1.items - 1)
+    local position_info2 = string.format("[%d/%d]", panel2.selected_item - 1, #panel2.items - 1)
+
+    -- Draw left vertical separator
+    draw_text_colored("white", "|")
+
+    -- Draw panel 1 position info and padding
+    move_cursor(view_height + HEADER_LINES + 1, 2)
+    draw_text_colored("green", position_info1)
+
+    local pad1 = panel1.view_width - #position_info1
+    if pad1 < 0 then pad1 = 0 end -- Ensure non-negative padding
+    draw_text_colored("white", string.rep("=", pad1))
+
+    -- Draw vertical separator between panels
+    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 2)
+    draw_text_colored("white", "|")
+
+    -- Draw panel 2 position info and padding
+    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 3)
+    draw_text_colored("green", position_info2)
+
+    local pad2 = panel2.view_width - #position_info2
+    if pad2 < 0 then pad2 = 0 end -- Ensure non-negative padding
+    draw_text_colored("white", string.rep("=", pad2))
+
+    -- Draw right vertical separator
+    move_cursor(view_height + HEADER_LINES + 1, view_width)
+    draw_text_colored("white", "|")
+    draw_text("\n")
+    draw_text_colored("gray", " Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
+end
+
+-- Function to draw the header section (LFM info, RAM info, and path separator)
+local function draw_header(panel1, panel2, active_panel, view_width)
+    -- Display RAM information in the header (LFM left, RAM right)
+    local lfm_info = "Lua File Manager (v0.1)"
+    local ram_info = get_ram_info()
+    draw_text_colored("bright_white", lfm_info)
+    local pad = view_width - #lfm_info - #ram_info
+    if pad < 1 then pad = 1 end
+    draw_text_colored("black", string.rep(" ", pad))
+    draw_text_colored("green", ram_info .. "\n")
+
+    -- Display path in the separator line (left-aligned, =[ path ]===...)
+    local path_str1 = panel1.absolute_path
+    if #path_str1 > panel1.view_width - 2 then -- Adjust truncation for panel width
+        path_str1 = "..." .. path_str1:sub(-(panel1.view_width - 5))
+    end
+    local sep1 = "[" .. path_str1 .. "]" .. string.rep("=", math.max(0, panel1.view_width - (#path_str1 + 2)))
+
+    local path_str2 = panel2.absolute_path
+    if #path_str2 > panel2.view_width - 2 then -- Adjust truncation for panel width
+        path_str2 = "..." .. path_str2:sub(-(panel2.view_width - 5))
+    end
+     local sep2 = "[" .. path_str2 .. "]" .. string.rep("=", math.max(0, panel2.view_width - (#path_str2 + 2)))
+
+    -- Highlight active panel path
+    if active_panel == 1 then
+        draw_text_colored("bright_white", "|" .. sep1)
+        draw_text_colored("white", "|" .. sep2)
+    else
+        draw_text_colored("white", "|" .. sep1)
+        draw_text_colored("bright_white", "|" .. sep2)
+    end
+    draw_text_colored("white", "|") -- Right separator
+
+    draw_text("\n")
+end
+
 -- Function to draw a single row of a panel
 local function draw_panel_row(panel, row_index, start_col, is_active, panel_view_width)
     local item_index = row_index + panel.scroll_offset
@@ -521,57 +595,8 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
     end
 end
 
--- Function to display file manager interface
-local function display_file_manager()
-    -- Update terminal size
-    view_height, view_width = get_terminal_size()
-    view_height = view_height - HEADER_LINES - FOOTER_LINES - 1
-
-    -- Calculate panel widths considering 3 vertical separators
-    local usable_width = view_width - 3 -- Account for left, middle, and right separators
-    panel1.view_width = math.floor(usable_width / 2)
-    panel2.view_width = usable_width - panel1.view_width
-
-    -- Update scroll position for both panels
-    update_scroll(panel1)
-    update_scroll(panel2)
-
-    clear_screen()
-
-    -- Display RAM information in the header (LFM left, RAM right)
-    local lfm_info = "Lua File Manager (v0.1)"
-    local ram_info = get_ram_info()
-    draw_text_colored("bright_white", lfm_info)
-    local pad = view_width - #lfm_info - #ram_info
-    if pad < 1 then pad = 1 end
-    draw_text_colored("black", string.rep(" ", pad))
-    draw_text_colored("green", ram_info .. "\n")
-
-    -- Display path in the separator line (left-aligned, =[ path ]===...)
-    local path_str1 = panel1.absolute_path
-    if #path_str1 > panel1.view_width - 2 then -- Adjust truncation for panel width
-        path_str1 = "..." .. path_str1:sub(-(panel1.view_width - 5))
-    end
-    local sep1 = "[" .. path_str1 .. "]" .. string.rep("=", math.max(0, panel1.view_width - (#path_str1 + 2)))
-
-    local path_str2 = panel2.absolute_path
-    if #path_str2 > panel2.view_width - 2 then -- Adjust truncation for panel width
-        path_str2 = "..." .. path_str2:sub(-(panel2.view_width - 5))
-    end
-     local sep2 = "[" .. path_str2 .. "]" .. string.rep("=", math.max(0, panel2.view_width - (#path_str2 + 2)))
-
-    -- Highlight active panel path
-    if active_panel == 1 then
-        draw_text_colored("bright_white", "|" .. sep1)
-        draw_text_colored("white", "|" .. sep2)
-    else
-        draw_text_colored("white", "|" .. sep1)
-        draw_text_colored("bright_white", "|" .. sep2)
-    end
-    draw_text_colored("white", "|") -- Right separator
-
-    draw_text("\n")
-
+-- Function to draw the content of both panels (the file list)
+local function draw_panels_content(panel1, panel2, active_panel, view_height, view_width)
     -- Display file list
     for i = 1, view_height do
         -- Draw left vertical separator
@@ -593,40 +618,33 @@ local function display_file_manager()
         draw_text_colored("white", "|")
         draw_text("\n")
     end
+end
 
-    -- Display hint with position info
-    move_cursor(view_height + HEADER_LINES + 1, 1)
-    local position_info1 = string.format("[%d/%d]", panel1.selected_item - 1, #panel1.items - 1)
-    local position_info2 = string.format("[%d/%d]", panel2.selected_item - 1, #panel2.items - 1)
+-- Function to display file manager interface
+local function display_file_manager()
+    -- Update terminal size
+    view_height, view_width = get_terminal_size()
+    view_height = view_height - HEADER_LINES - FOOTER_LINES - 1
 
-    -- Draw left vertical separator
-    draw_text_colored("white", "|")
+    -- Calculate panel widths considering 3 vertical separators
+    local usable_width = view_width - 3 -- Account for left, middle, and right separators
+    panel1.view_width = math.floor(usable_width / 2)
+    panel2.view_width = usable_width - panel1.view_width
 
-    -- Draw panel 1 position info and padding
-    move_cursor(view_height + HEADER_LINES + 1, 2)
-    draw_text_colored("green", position_info1)
+    -- Update scroll position for both panels
+    update_scroll(panel1)
+    update_scroll(panel2)
 
-    local pad1 = panel1.view_width - #position_info1
-    if pad1 < 0 then pad1 = 0 end -- Ensure non-negative padding
-    draw_text_colored("white", string.rep("=", pad1))
+    clear_screen()
 
-    -- Draw vertical separator between panels
-    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 2)
-    draw_text_colored("white", "|")
+    -- Draw the header section
+    draw_header(panel1, panel2, active_panel, view_width)
 
-    -- Draw panel 2 position info and padding
-    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 3)
-    draw_text_colored("green", position_info2)
+    -- Draw the content of both panels
+    draw_panels_content(panel1, panel2, active_panel, view_height, view_width)
 
-    local pad2 = panel2.view_width - #position_info2
-    if pad2 < 0 then pad2 = 0 end -- Ensure non-negative padding
-    draw_text_colored("white", string.rep("=", pad2))
-
-    -- Draw right vertical separator
-    move_cursor(view_height + HEADER_LINES + 1, view_width)
-    draw_text_colored("white", "|")
-    draw_text("\n")
-    draw_text_colored("gray", " Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
+    -- Draw the footer section
+    draw_footer(panel1, panel2, view_height, view_width)
 end
 
 -- Function to edit file using vi
