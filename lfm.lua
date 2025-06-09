@@ -47,16 +47,26 @@ end
 local HEADER_LINES = 2
 local FOOTER_LINES = 2
 
-local current_dir = "."
-local absolute_path = get_absolute_path(current_dir)
-local selected_item = 1
-local scroll_offset = 0
-local items = {}
-local view_height, view_width = get_terminal_size()
-view_height = view_height - HEADER_LINES - FOOTER_LINES
-
 -- Table to store positions for each directory
 local dir_positions = {}
+
+-- Panel data structure
+local panel = {
+    current_dir = ".",
+    absolute_path = get_absolute_path("."),
+    selected_item = 1,
+    scroll_offset = 0,
+    items = {},
+    view_width = 0
+}
+
+-- Two panels
+local panel1 = {}
+for k, v in pairs(panel) do panel1[k] = v end
+local panel2 = {}
+for k, v in pairs(panel) do panel2[k] = v end
+
+local active_panel = 1 -- 1 for panel1, 2 for panel2
 
 local function get_directory_items(path)
     local items = {}
@@ -228,6 +238,10 @@ local function get_key()
         result = "edit"
     elseif key == "r" then
         result = "refresh"
+    elseif key == "t" then
+        result = "terminal"
+    elseif key == "\t" then -- Handle Tab key
+        result = "tab"
     end
     
     -- Return terminal to normal mode
@@ -237,7 +251,7 @@ local function get_key()
 end
 
 -- Function to view file contents
-local function view_file(path)
+local function view_file(path) -- Note: AI, don`t remove ")"
     local handle = io.open(path, "r")
     if not handle then
         return
@@ -332,13 +346,13 @@ local function view_file(path)
 end
 
 -- Function to update scroll position
-local function update_scroll()
-    if selected_item < scroll_offset + 1 then
-        scroll_offset = selected_item - 1
-    elseif selected_item > scroll_offset + view_height then
-        scroll_offset = selected_item - view_height
+local function update_scroll(panel)
+    if panel.selected_item < panel.scroll_offset + 1 then
+        panel.scroll_offset = panel.selected_item - 1
+    elseif panel.selected_item > panel.scroll_offset + view_height then
+        panel.scroll_offset = panel.selected_item - view_height
     end
-    if scroll_offset < 0 then scroll_offset = 0 end
+    if panel.scroll_offset < 0 then panel.scroll_offset = 0 end
 end
 
 -- Function to calculate string width considering Unicode characters
@@ -435,8 +449,14 @@ local function display_file_manager()
     view_height, view_width = get_terminal_size()
     view_height = view_height - HEADER_LINES - FOOTER_LINES - 1
     
-    -- Update scroll position
-    update_scroll()
+    -- Calculate panel widths considering 3 vertical separators
+    local usable_width = view_width - 3 -- Account for left, middle, and right separators
+    panel1.view_width = math.floor(usable_width / 2)
+    panel2.view_width = usable_width - panel1.view_width
+
+    -- Update scroll position for both panels
+    update_scroll(panel1)
+    update_scroll(panel2)
     
     clear_screen()
     
@@ -453,20 +473,52 @@ local function display_file_manager()
     set_color("white")
 
     -- Display path in the separator line (left-aligned, =[ path ]===...)
-    local path_str = absolute_path
-    if #path_str > view_width - 8 then
-        path_str = "..." .. path_str:sub(-(view_width - 11))
+    local path_str1 = panel1.absolute_path
+    if #path_str1 > panel1.view_width - 2 then -- Adjust truncation for panel width
+        path_str1 = "..." .. path_str1:sub(-(panel1.view_width - 5))
     end
-    local sep = "[" .. path_str .. "]" .. string.rep("=", math.max(0, view_width - (#path_str + 2)))
-    print(sep)
+    local sep1 = "[" .. path_str1 .. "]" .. string.rep("=", math.max(0, panel1.view_width - (#path_str1 + 2)))
+
+    local path_str2 = panel2.absolute_path
+    if #path_str2 > panel2.view_width - 2 then -- Adjust truncation for panel width
+        path_str2 = "..." .. path_str2:sub(-(panel2.view_width - 5))
+    end
+     local sep2 = "[" .. path_str2 .. "]" .. string.rep("=", math.max(0, panel2.view_width - (#path_str2 + 2)))
+
+    -- Highlight active panel path
+    if active_panel == 1 then
+        set_color("bright_white")
+        io.write("|" .. sep1)
+        set_color("white")
+        io.write("|" .. sep2)
+    else
+        set_color("white")
+        io.write("|" .. sep1)
+        set_color("bright_white")
+        io.write("|" .. sep2)
+    end
+    set_color("white")
+    print("|") -- Right separator
     set_color("reset")
     
     -- Display file list
     for i = 1, view_height do
-        local item_index = i + scroll_offset
-        local item = items[item_index]
-        if item then
-            if item_index == selected_item then
+        local item_index1 = i + panel1.scroll_offset
+        local item1 = panel1.items[item_index1]
+
+        local item_index2 = i + panel2.scroll_offset
+        local item2 = panel2.items[item_index2]
+
+        -- Draw left vertical separator
+        move_cursor(HEADER_LINES + i, 1)
+        set_color("white")
+        io.write("|")
+        set_color("reset")
+
+        -- Draw panel 1
+        move_cursor(HEADER_LINES + i, 2)
+        if item1 then
+            if item_index1 == panel1.selected_item and active_panel == 1 then
                 set_color("bright_white")
                 io.write(">")
             else
@@ -474,16 +526,16 @@ local function display_file_manager()
             end
             
             -- Check if we have read permissions
-            local has_read = check_permissions(item.permissions, "read")
-            local is_executable = check_permissions(item.permissions, "execute")
+            local has_read1 = check_permissions(item1.permissions, "read")
+            local is_executable1 = check_permissions(item1.permissions, "execute")
             
-            if not has_read then
+            if not has_read1 then
                 set_color("red")
                 io.write(" ")
-            elseif item.is_dir then
+            elseif item1.is_dir then
                 set_color("bright_white")
                 io.write("/")
-            elseif is_executable then
+            elseif is_executable1 then
                 set_color("green")
                 io.write("*")
             else
@@ -492,42 +544,148 @@ local function display_file_manager()
             end
             
             -- Convert timestamp to readable date
-            local date_str = ""
-            if item.modified then
-                local timestamp = tonumber(item.modified)
-                if timestamp then
-                    date_str = os.date("%Y-%m-%d %H:%M", timestamp)
+            local date_str1 = ""
+            if item1.modified then
+                local timestamp1 = tonumber(item1.modified)
+                if timestamp1 then
+                    date_str1 = os.date("%Y-%m-%d %H:%M", timestamp1)
                 end
             end
             
-            local size_str = item.is_dir and "<DIR>" or (item.size or "0")
+            local size_str1 = item1.is_dir and "<DIR>" or (item1.size or "0")
             
             -- Format each column with proper Unicode handling
-            local name_padded = pad_string(item.name, 40, true)
-            local size_padded = pad_string(size_str, 10, false)
-            local date_padded = pad_string(date_str, 16, true)
+            local name_padded1 = pad_string(item1.name, math.floor(panel1.view_width * 0.4), true)
+            local size_padded1 = pad_string(size_str1, math.floor(panel1.view_width * 0.2), false)
+            local date_padded1 = pad_string(date_str1, math.floor(panel1.view_width * 0.3), true)
             
-            io.write(string.format("%s %s %s", name_padded, size_padded, date_padded))
+            io.write(string.format("%s %s %s", name_padded1, size_padded1, date_padded1))
             
             -- Display link target if it's a symlink
-            if item.is_link and item.link_target then
-                io.write(" -> " .. item.link_target)
+            if item1.is_link and item1.link_target then
+                io.write(" -> " .. item1.link_target)
             end
             
-            print()
             set_color("reset")
         else 
-            print()
+            io.write(string.rep(" ", panel1.view_width))
         end
+
+        -- Add vertical separator between panels
+        move_cursor(HEADER_LINES + i, panel1.view_width + 2)
+        set_color("white")
+        io.write("|")
+        set_color("reset")
+
+        -- Draw panel 2
+        move_cursor(HEADER_LINES + i, panel1.view_width + 3)
+        if item2 then
+             if item_index2 == panel2.selected_item and active_panel == 2 then
+                set_color("bright_white")
+                io.write(">")
+            else
+                io.write(" ")
+            end
+            
+            -- Check if we have read permissions
+            local has_read2 = check_permissions(item2.permissions, "read")
+            local is_executable2 = check_permissions(item2.permissions, "execute")
+            
+            if not has_read2 then
+                set_color("red")
+                io.write(" ")
+            elseif item2.is_dir then
+                set_color("bright_white")
+                io.write("/")
+            elseif is_executable2 then
+                set_color("green")
+                io.write("*")
+            else
+                set_color("white")
+                io.write(" ")
+            end
+            
+            -- Convert timestamp to readable date
+            local date_str2 = ""
+            if item2.modified then
+                local timestamp2 = tonumber(item2.modified)
+                if timestamp2 then
+                    date_str2 = os.date("%Y-%m-%d %H:%M", timestamp2)
+                end
+            end
+            
+            local size_str2 = item2.is_dir and "<DIR>" or (item2.size or "0")
+            
+            -- Format each column with proper Unicode handling
+            local name_padded2 = pad_string(item2.name, math.floor(panel2.view_width * 0.4), true)
+            local size_padded2 = pad_string(size_str2, math.floor(panel2.view_width * 0.2), false)
+            local date_padded2 = pad_string(date_str2, math.floor(panel2.view_width * 0.3), true)
+            
+            io.write(string.format("%s %s %s", name_padded2, size_padded2, date_padded2))
+            
+            -- Display link target if it's a symlink
+            if item2.is_link and item2.link_target then
+                io.write(" -> " .. item2.link_target)
+            end
+            
+            set_color("reset")
+        else
+             io.write(string.rep(" ", panel2.view_width))
+        end
+
+        -- Draw right vertical separator
+        move_cursor(HEADER_LINES + i, view_width)
+        set_color("white")
+        io.write("|")
+        set_color("reset")
+
+        print()
     end
     
     -- Display hint with position info
-    local position_info = string.format("[%d/%d] ", selected_item - 1, #items - 1)
-    set_color("green")
-    io.write(position_info)
+    move_cursor(view_height + HEADER_LINES + 1, 1)
+    local position_info1 = string.format("[%d/%d]", panel1.selected_item - 1, #panel1.items - 1)
+    local position_info2 = string.format("[%d/%d]", panel2.selected_item - 1, #panel2.items - 1)
+
+    -- Draw left vertical separator
     set_color("white")
-    print(string.rep("=", view_width - #position_info))
-    print("Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | q: Quit")
+    io.write("|")
+    set_color("reset")
+
+    -- Draw panel 1 position info and padding
+    move_cursor(view_height + HEADER_LINES + 1, 2)
+    set_color("green")
+    io.write(position_info1)
+    set_color("white")
+    local pad1 = panel1.view_width - #position_info1
+    if pad1 < 0 then pad1 = 0 end -- Ensure non-negative padding
+    io.write(string.rep("=", pad1))
+
+    -- Draw vertical separator between panels
+    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 2)
+    set_color("white")
+    io.write("|")
+    set_color("reset")
+
+    -- Draw panel 2 position info and padding
+    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 3)
+    set_color("green")
+    io.write(position_info2)
+    set_color("white")
+    local pad2 = panel2.view_width - #position_info2
+    if pad2 < 0 then pad2 = 0 end -- Ensure non-negative padding
+    io.write(string.rep("=", pad2))
+
+    -- Draw right vertical separator
+    move_cursor(view_height + HEADER_LINES + 1, view_width)
+    set_color("white")
+    io.write("|")
+    set_color("reset")
+
+    print()
+
+    -- Print hints on the next line
+    print(" Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit")
 end
 
 -- Function to edit file using vi
@@ -548,57 +706,65 @@ end
 
 -- Main loop
 local function main()
-    -- Initial load of directory items
-    items = get_directory_items(current_dir)
-    sort_items(items)
+    -- Initial load of directory items for both panels
+    panel1.items = get_directory_items(panel1.current_dir)
+    sort_items(panel1.items)
+    panel1.absolute_path = get_absolute_path(panel1.current_dir)
+
+    panel2.current_dir = panel1.current_dir -- Start panel2 in the same directory
+    panel2.items = get_directory_items(panel2.current_dir)
+    sort_items(panel2.items)
+    panel2.absolute_path = get_absolute_path(panel2.current_dir)
     
     while true do
         display_file_manager()
         
         local key = get_key()
         
+        local current_panel = (active_panel == 1) and panel1 or panel2
+
         if key == "quit" then
             break
         elseif key == "up" then
-            selected_item = math.max(1, selected_item - 1)
+            current_panel.selected_item = math.max(1, current_panel.selected_item - 1)
         elseif key == "down" then
-            selected_item = math.min(#items, selected_item + 1)
+            current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + 1)
         elseif key == "pageup" then
-            selected_item = math.max(1, selected_item - view_height)
+            current_panel.selected_item = math.max(1, current_panel.selected_item - view_height)
         elseif key == "pagedown" then
-            selected_item = math.min(#items, selected_item + view_height)
+            current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + view_height)
         elseif key == "home" then
-            selected_item = 1
+            current_panel.selected_item = 1
         elseif key == "end" then
-            selected_item = #items
+            current_panel.selected_item = #current_panel.items
         elseif key == "enter" then
-            local selected = items[selected_item]
+            local selected = current_panel.items[current_panel.selected_item]
             if selected and selected.is_dir and check_permissions(selected.permissions, "read") then
                 -- Save current position before changing directory
-                dir_positions[current_dir] = selected_item
+                dir_positions[current_panel.current_dir] = current_panel.selected_item
                 -- Clear absolute path cache when changing directory
                 abs_path_cache = {}
                 -- If it's a symlink, use the link target path
                 local target_path = selected.is_link and selected.link_target or selected.path
                 -- Ensure root directory is represented as "/"
-                current_dir = target_path == "" and "/" or target_path
-                absolute_path = get_absolute_path(current_dir)
+                current_panel.current_dir = target_path == "" and "/" or target_path
+                current_panel.absolute_path = get_absolute_path(current_panel.current_dir)
                 -- Load new directory items
-                items = get_directory_items(current_dir)
-                sort_items(items)
+                current_panel.items = get_directory_items(current_panel.current_dir)
+                sort_items(current_panel.items)
                 -- Restore position if exists, otherwise start from beginning
-                selected_item = dir_positions[current_dir] or 1
-                scroll_offset = 0
+                current_panel.selected_item = dir_positions[current_panel.current_dir] or 1
+                current_panel.scroll_offset = 0
             end
         elseif key == "view" then
-            local selected = items[selected_item]
+            local selected = current_panel.items[current_panel.selected_item]
             if selected and not selected.is_dir and check_permissions(selected.permissions, "read") then
                 -- If it's a symlink, use the link target path
                 local target_path = selected.is_link and selected.link_target or selected.path
                 view_file(target_path)
             end
         elseif key == "edit" then
-            local selected = items[selected_item]
+            local selected = current_panel.items[current_panel.selected_item]
             if selected and not selected.is_dir and check_permissions(selected.permissions, "write") then
                 -- If it's a symlink, use the link target path
                 local target_path = selected.is_link and selected.link_target or selected.path
@@ -608,8 +774,12 @@ local function main()
             -- Clear absolute path cache
             abs_path_cache = {}
 
-            items = get_directory_items(current_dir)
-            sort_items(items)
+            current_panel.items = get_directory_items(current_panel.current_dir)
+            sort_items(current_panel.items)
+        elseif key == "terminal" then
+             open_terminal(current_panel.current_dir)
+        elseif key == "tab" then
+            active_panel = (active_panel == 1) and 2 or 1
         end
     end
 end
