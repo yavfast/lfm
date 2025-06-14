@@ -2,15 +2,7 @@
 -- Files function for LFM (Lua File Manager)
 
 local M = {}
-
--- Execute a system command with LANG=C and return its output as string
-function M.exec_command_output(command)
-    local handle = io.popen('LANG=C ' .. command)
-    if not handle then return nil end
-    local output = handle:read("*a")
-    handle:close()
-    return output
-end
+local lfm_sys = require("lfm_sys")
 
 -- Simple cache for absolute paths
 local abs_path_cache = {}
@@ -19,7 +11,7 @@ function M.get_absolute_path(path)
     if absolute_path then
         return absolute_path
     end
-    local output = M.exec_command_output('realpath "' .. path .. '" 2>/dev/null')
+    local output = lfm_sys.exec_command_output('realpath "' .. path .. '" 2>/dev/null')
     if output then
         absolute_path = output:gsub("\n", "")
         abs_path_cache[path] = absolute_path
@@ -119,4 +111,3 @@ end
 
 
 return M
-

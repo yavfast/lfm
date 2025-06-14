@@ -9,17 +9,10 @@
     Version: 0.1
 ]]
 
+local lfm_sys = require("lfm_sys")
 local lfm_files = require("lfm_files")
 local lfm_scr = require("lfm_scr")
-
-local function get_terminal_size()
-    local output = lfm_files.exec_command_output("stty size")
-    if output then
-        local rows, cols = output:match("(%d+)%s+(%d+)")
-        return tonumber(rows) or 24, tonumber(cols) or 80
-    end
-    return 24, 80
-end
+local lfm_view = require("lfm_view")
 
 local HEADER_LINES = 2
 local FOOTER_LINES = 2
@@ -59,157 +52,6 @@ local function sort_items(items)
             return a.name:lower() < b.name:lower()
         end
     end)
-end
-
--- Function to get key press
-local function get_key()
-    -- Set terminal to "raw" mode
-    os.execute("stty raw -echo")
-    
-    local key = io.read(1)
-    local result
-
-    if key == "\27" then -- ESC
-        local next1 = io.read(1)
-        if next1 == "[" then
-            local next2 = io.read(1)
-            if next2 == "A" then
-                result = "up"
-            elseif next2 == "B" then
-                result = "down"
-            elseif next2 == "C" then
-                result = "right"
-            elseif next2 == "D" then
-                result = "left"
-            elseif next2 == "5" then -- PageUp
-                local next3 = io.read(1)
-                if next3 == "~" then
-                    result = "pageup"
-                end
-            elseif next2 == "6" then -- PageDown
-                local next3 = io.read(1)
-                if next3 == "~" then
-                    result = "pagedown"
-                end
-            elseif next2 == "H" then -- Home
-                result = "home"
-            elseif next2 == "F" then -- End
-                result = "end"
-            end
-        end
-    elseif key == "\13" then -- Enter
-        result = "enter"
-    elseif key == "q" then
-        result = "quit"
-    elseif key == "v" then
-        result = "view"
-    elseif key == "e" then
-        result = "edit"
-    elseif key == "r" then
-        result = "refresh"
-    elseif key == "t" then
-        result = "terminal"
-    elseif key == "\t" then -- Handle Tab key
-        result = "tab"
-    end
-    
-    -- Return terminal to normal mode
-    os.execute("stty -raw echo")
-    
-    return result
-end
-
--- Function to view file contents
-local function view_file(path) -- Note: AI, don`t remove ")"
-    local handle = io.open(path, "r")
-    if not handle then
-        return
-    end
-    
-    local content = handle:read("*a")
-    handle:close()
-    
-    -- Get absolute path for the header
-    local absolute_path = lfm_files.get_absolute_path(path)
-    
-    -- Clear screen
-    lfm_scr.clear_screen()
-    
-    -- Display header
-    lfm_scr.draw_text_colored("bright_blue", "View file: " .. absolute_path .. "\n")
-    lfm_scr.draw_text_colored("gray", string.rep("=", view_width) .. "\n")
-
-    lfm_scr.set_color("white")
-
-    -- Display content
-    local lines = {}
-    -- Split content into lines preserving empty lines
-    for line in content:gmatch("[^\r\n]*\r?\n?") do
-        -- Remove trailing newline if present
-        line = line:gsub("\r?\n$", "")
-        table.insert(lines, line)
-    end
-    
-    local current_line = 1
-    local current_col = 0
-    local max_lines = view_height
-    while true do
-        -- Clear content area
-        for i = 1, max_lines do
-            lfm_scr.move_cursor(HEADER_LINES + i, 1)
-            lfm_scr.draw_text(string.rep(" ", view_width))
-        end
-        
-        -- Display current portion of content
-        for i = 1, max_lines do
-            local line_num = current_line + i - 1
-            if line_num <= #lines then
-                lfm_scr.move_cursor(HEADER_LINES + i, 1)
-                local line = lines[line_num]
-                if line then
-                    -- Apply horizontal scroll
-                    if current_col > 0 then
-                        line = line:sub(current_col + 1)
-                    end
-                    -- Limit line length
-                    if #line > view_width then
-                        line = line:sub(1, view_width - 3) .. "..."
-                    end
-                    lfm_scr.draw_text(line .. "\n")
-                end
-            end
-        end
-        
-        -- Display hint (ASCII only)
-        lfm_scr.move_cursor(view_height + HEADER_LINES + 1, 1)
-        local position_info = string.format("[%d-%d/%d] ", current_line, current_line + max_lines - 1, #lines)
-        lfm_scr.draw_text_colored("green", position_info)
-        lfm_scr.draw_text_colored("gray", string.rep("=", view_width - #position_info) .. "\n")
-        lfm_scr.draw_text_colored("gray", "Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back\n")
-        
-        -- Wait for key press
-        local key = get_key()
-        if key == "quit" then
-            break
-        elseif key == "up" then
-            current_line = math.max(1, current_line - 1)
-        elseif key == "down" then
-            current_line = math.min(#lines - max_lines + 1, current_line + 1)
-        elseif key == "pageup" then
-            current_line = math.max(1, current_line - max_lines)
-        elseif key == "pagedown" then
-            current_line = math.min(#lines - max_lines + 1, current_line + max_lines)
-        elseif key == "home" then
-            current_line = 1
-        elseif key == "end" then
-            current_line = math.max(1, #lines - max_lines + 1)
-        elseif key == "left" then
-            current_col = math.max(0, current_col - 10)
-        elseif key == "right" then
-            current_col = current_col + 10  -- Scroll right by 10 characters
-        end
-        current_line = math.max(1, current_line)
-    end
 end
 
 -- Function to update scroll position
@@ -286,7 +128,7 @@ end
 
 -- Function to get RAM information
 local function get_ram_info()
-    local output = lfm_files.exec_command_output("free")
+    local output = lfm_sys.exec_command_output("free")
     if output then
         local total, used = output:match("Mem:%s+(%d+)%s+(%d+)")
         if total and used then
@@ -467,7 +309,7 @@ end
 -- Function to display file manager interface
 local function display_file_manager()
     -- Update terminal size
-    view_height, view_width = get_terminal_size()
+    view_height, view_width = lfm_sys.get_terminal_size()
     view_height = view_height - HEADER_LINES - FOOTER_LINES - 1
 
     -- Calculate panel widths considering 3 vertical separators
@@ -522,7 +364,7 @@ local function main()
     while true do
         display_file_manager()
         
-        local key = get_key()
+        local key = lfm_sys.get_key()
         
         local current_panel = (active_panel == 1) and panel1 or panel2
 
@@ -562,9 +404,8 @@ local function main()
         elseif key == "view" then
             local selected = current_panel.items[current_panel.selected_item]
             if selected and not selected.is_dir and check_permissions(selected.permissions, "read") then
-                -- If it's a symlink, use the link target path
                 local target_path = selected.is_link and selected.link_target or selected.path
-                view_file(target_path)
+                lfm_view.view_file(target_path, view_width, view_height, HEADER_LINES)
             end
         elseif key == "edit" then
             local selected = current_panel.items[current_panel.selected_item]
