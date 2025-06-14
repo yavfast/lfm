@@ -18,17 +18,14 @@ function M.pad_string(str, width, align_left)
     if current_width > width then
         local truncated = ""
         local length = 0
-
-        -- Iterate through Unicode characters
         for char in str:gmatch("[^\128-\191][\128-\191]*") do
-            if length + 1 <= length - 1 then
+            if length + 1 < width then
                 truncated = truncated .. char
                 length = length + 1
             else
                 break
             end
         end
-
         return truncated .. "~"
     end
 

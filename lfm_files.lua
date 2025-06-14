@@ -128,5 +128,12 @@ function M.check_permissions(permissions, action)
     return false
 end
 
+function M.get_basename(path)
+    -- Remove trailing slash if present
+    local s = path:gsub("/*$", "")
+    -- Return the last component after the last '/'
+    return s:match("([^/]+)$") or s
+end
+
 
 return M
