@@ -179,16 +179,15 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         local size_str = item.is_dir and "<DIR>" or (item.size or "0")
 
         -- Format each column with proper Unicode handling
-        local name_padded = lfm_str.pad_string(item.name, math.floor(panel_view_width * 0.4), true)
-        local size_padded = lfm_str.pad_string(size_str, math.floor(panel_view_width * 0.2), false)
-        local date_padded = lfm_str.pad_string(date_str, math.floor(panel_view_width * 0.3), true)
+        local date_width = 16
+        local size_width = 8
+        local name_width = panel_view_width - date_width - size_width - 6  -- -2 prefix
 
-        lfm_scr.draw_text(string.format("%s %s %s", name_padded, size_padded, date_padded))
+        local name_padded = lfm_str.pad_string(item.name, name_width, true)   -- left-aligned
+        local size_padded = lfm_str.pad_string(size_str, size_width, false)   -- right-aligned
+        local date_padded = lfm_str.pad_string(date_str, date_width, false)   -- right-aligned
 
-        -- Display link target if it's a symlink
-        if item.is_link and item.link_target then
-            lfm_scr.draw_text(" -> " .. item.link_target)
-        end
+        lfm_scr.draw_text(string.format("%s %s  %s", name_padded, size_padded, date_padded))
 
     else
         lfm_scr.draw_text(string.rep(" ", panel_view_width))
