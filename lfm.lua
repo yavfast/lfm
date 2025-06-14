@@ -196,6 +196,10 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
 
         lfm_scr.draw_text(string.format("%s %s  %s", name_padded, size_padded, date_padded))
 
+        if item_index == panel.selected_item and is_active then
+            lfm_scr.draw_text_colored("bright_white", "<")
+        end
+
     else
         lfm_scr.draw_text(string.rep(" ", panel_view_width))
     end
