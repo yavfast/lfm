@@ -109,5 +109,24 @@ function M.get_directory_items(path)
     return items
 end
 
+function M.check_permissions(permissions, action)
+    if not permissions then return false end
+
+    local user_perms = {
+        read = permissions:sub(2, 4),
+        write = permissions:sub(5, 7),
+        execute = permissions:sub(8, 10)
+    }
+
+    if action == "read" then
+        return user_perms.read:match("r")
+    elseif action == "write" then
+        return user_perms.write:match("w")
+    elseif action == "execute" then
+        return user_perms.execute:match("x")
+    end
+    return false
+end
+
 
 return M

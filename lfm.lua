@@ -13,6 +13,7 @@ local lfm_sys = require("lfm_sys")
 local lfm_files = require("lfm_files")
 local lfm_scr = require("lfm_scr")
 local lfm_view = require("lfm_view")
+local lfm_str = require("lfm_str")
 
 local HEADER_LINES = 2
 local FOOTER_LINES = 2
@@ -64,93 +65,6 @@ local function update_scroll(panel)
     if panel.scroll_offset < 0 then panel.scroll_offset = 0 end
 end
 
--- Function to calculate string width considering Unicode characters
-local function get_string_width(str)
-    local width = 0
-    for _ in str:gmatch("[^\128-\191][\128-\191]*") do
-        width = width + 1
-    end
-    return width
-end
-
--- Function to pad string with spaces considering Unicode characters
-local function pad_string(str, width, align_left)
-    local current_width = get_string_width(str)
-    local padding = width - current_width
-    
-    -- If string is too long, truncate it and add "~"
-    if current_width > width then
-        local truncated = ""
-        local current_width = 0
-        
-        -- Iterate through Unicode characters
-        for char in str:gmatch("[^\128-\191][\128-\191]*") do
-            if current_width + 1 <= width - 1 then
-                truncated = truncated .. char
-                current_width = current_width + 1
-            else
-                break
-            end
-        end
-        
-        return truncated .. "~"
-    end
-    
-    if padding <= 0 then
-        return str
-    end
-    
-    if align_left then
-        return str .. string.rep(" ", padding)
-    else
-        return string.rep(" ", padding) .. str
-    end
-end
-
-local function check_permissions(permissions, action)
-    if not permissions then return false end
-    
-    local user_perms = {
-        read = permissions:sub(2, 4),
-        write = permissions:sub(5, 7),
-        execute = permissions:sub(8, 10)
-    }
-    
-    if action == "read" then
-        return user_perms.read:match("r")
-    elseif action == "write" then
-        return user_perms.write:match("w")
-    elseif action == "execute" then
-        return user_perms.execute:match("x")
-    end
-    return false
-end
-
--- Function to get RAM information
-local function get_ram_info()
-    local output = lfm_sys.exec_command_output("free")
-    if output then
-        local total, used = output:match("Mem:%s+(%d+)%s+(%d+)")
-        if total and used then
-            total = tonumber(total)
-            used = tonumber(used)
-            -- Convert to human readable format
-            local function format_size(bytes)
-                local units = {'KB', 'MB', 'GB'}
-                local size = bytes
-                local unit_index = 1
-                while size > 1024 and unit_index < #units do
-                    size = size / 1024
-                    unit_index = unit_index + 1
-                end
-                return string.format("%.1f %s", size, units[unit_index])
-            end
-            return "RAM: " .. format_size(used) .. " / " .. format_size(total)
-        end
-    end
-    return "RAM: N/A"
-end
-
 -- Function to draw the footer section (position info and hints)
 local function draw_footer(panel1, panel2, view_height, view_width)
     -- Display hint with position info
@@ -192,7 +106,7 @@ end
 local function draw_header(panel1, panel2, active_panel, view_width)
     -- Display RAM information in the header (LFM left, RAM right)
     local lfm_info = "Lua File Manager (v0.1)"
-    local ram_info = get_ram_info()
+    local ram_info = lfm_sys.get_ram_info()
     lfm_scr.draw_text_colored("bright_white", lfm_info)
     local pad = view_width - #lfm_info - #ram_info
     if pad < 1 then pad = 1 end
@@ -240,8 +154,8 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         end
 
         -- Check if we have read permissions
-        local has_read = check_permissions(item.permissions, "read")
-        local is_executable = check_permissions(item.permissions, "execute")
+        local has_read = lfm_files.check_permissions(item.permissions, "read")
+        local is_executable = lfm_files.check_permissions(item.permissions, "execute")
 
         if not has_read then
             lfm_scr.draw_text_colored("red", " ")
@@ -265,9 +179,9 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         local size_str = item.is_dir and "<DIR>" or (item.size or "0")
 
         -- Format each column with proper Unicode handling
-        local name_padded = pad_string(item.name, math.floor(panel_view_width * 0.4), true)
-        local size_padded = pad_string(size_str, math.floor(panel_view_width * 0.2), false)
-        local date_padded = pad_string(date_str, math.floor(panel_view_width * 0.3), true)
+        local name_padded = lfm_str.pad_string(item.name, math.floor(panel_view_width * 0.4), true)
+        local size_padded = lfm_str.pad_string(size_str, math.floor(panel_view_width * 0.2), false)
+        local date_padded = lfm_str.pad_string(date_str, math.floor(panel_view_width * 0.3), true)
 
         lfm_scr.draw_text(string.format("%s %s %s", name_padded, size_padded, date_padded))
 
@@ -384,7 +298,7 @@ local function main()
             current_panel.selected_item = #current_panel.items
         elseif key == "enter" then
             local selected = current_panel.items[current_panel.selected_item]
-            if selected and selected.is_dir and check_permissions(selected.permissions, "read") then
+            if selected and selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
                 -- Save current position before changing directory
                 dir_positions[current_panel.current_dir] = current_panel.selected_item
                 -- Clear absolute path cache when changing directory
@@ -403,13 +317,13 @@ local function main()
             end
         elseif key == "view" then
             local selected = current_panel.items[current_panel.selected_item]
-            if selected and not selected.is_dir and check_permissions(selected.permissions, "read") then
+            if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
                 local target_path = selected.is_link and selected.link_target or selected.path
                 lfm_view.view_file(target_path, view_width, view_height, HEADER_LINES)
             end
         elseif key == "edit" then
             local selected = current_panel.items[current_panel.selected_item]
-            if selected and not selected.is_dir and check_permissions(selected.permissions, "write") then
+            if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "write") then
                 -- If it's a symlink, use the link target path
                 local target_path = selected.is_link and selected.link_target or selected.path
                 edit_file(target_path)
