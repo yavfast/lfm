@@ -146,11 +146,13 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
 
     -- Draw panel content
     lfm_scr.move_cursor(2 + row_index, start_col)
+
+    local is_selected = item_index == panel.selected_item
     if item then
-        if item_index == panel.selected_item and is_active then
-            lfm_scr.draw_text_colored("bright_white", ">")
+        if is_selected and is_active then
+            lfm_scr.set_bg_color("gray")
         else
-            lfm_scr.draw_text(" ")
+            lfm_scr.set_bg_color("black")
         end
 
         -- Check if we have read permissions
@@ -188,7 +190,7 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         -- Format each column with proper Unicode handling
         local date_width = 16
         local size_width = 8
-        local name_width = panel_view_width - date_width - size_width - 6  -- -2 prefix
+        local name_width = panel_view_width - date_width - size_width - 4
 
         local name_padded = lfm_str.pad_string(item.name, name_width, true)   -- left-aligned
         local size_padded = lfm_str.pad_string(size_str, size_width, false)   -- right-aligned
@@ -196,8 +198,8 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
 
         lfm_scr.draw_text(string.format("%s %s  %s", name_padded, size_padded, date_padded))
 
-        if item_index == panel.selected_item and is_active then
-            lfm_scr.draw_text_colored("bright_white", "<")
+        if is_selected and is_active then
+            lfm_scr.set_bg_color("black")
         end
 
     else

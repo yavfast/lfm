@@ -51,5 +51,32 @@ function M.draw_text_colored(color, text)
     M.draw_text(text)
 end
 
+local bg_colors = {
+    black = "40",
+    red = "41",
+    green = "42",
+    yellow = "43",
+    blue = "44",
+    white = "47",
+    gray = "100"
+}
+
+-- Function to set background color
+function M.set_bg_color(color)
+    io.write("\27[" .. (bg_colors[color] or "0") .. "m")
+end
+
+-- Function to reset all colors
+function M.reset_colors()
+    io.write("\27[0m")
+end
+
+-- Function to draw colored text with background
+function M.draw_text_with_bg(fg_color, bg_color, text)
+    M.set_color(fg_color)
+    M.set_bg_color(bg_color)
+    M.draw_text(text)
+    M.reset_colors()
+end
 
 return M
