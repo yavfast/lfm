@@ -260,6 +260,46 @@ local function edit_file(path)
     display_file_manager()
 end
 
+-- Function to open directory and update panel
+local function open_dir(panel, target_path, prev_dir)
+    -- Clear absolute path cache when changing directory
+    lfm_files.clear_path_cache()
+    -- Ensure root directory is represented as "/"
+    panel.current_dir = target_path == "" and "/" or target_path
+    panel.absolute_path = lfm_files.get_absolute_path(panel.current_dir)
+    -- Load new directory items
+    panel.items = lfm_files.get_directory_items(panel.current_dir)
+    sort_items(panel.items)
+    -- Restore position if exists, otherwise start from beginning
+    if prev_dir then
+        local prev_name = lfm_files.get_basename(prev_dir)
+        local found = 1
+        for i, item in ipairs(panel.items) do
+            if item.name == prev_name then
+                found = i
+                break
+            end
+        end
+        panel.selected_item = found
+    else
+        panel.selected_item = 1
+    end
+    panel.scroll_offset = 0
+end
+
+-- Function to handle Enter key press
+local function handle_enter_key(current_panel)
+    local selected = current_panel.items[current_panel.selected_item]
+    if selected and selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
+        local target_path = selected.is_link and selected.link_target or selected.path
+        if selected.name == ".." then
+            open_dir(current_panel, target_path, current_panel.current_dir)
+        else
+            open_dir(current_panel, target_path)
+        end
+    end
+end
+
 -- Main loop
 local function main()
     -- Initial load of directory items for both panels
@@ -294,36 +334,7 @@ local function main()
         elseif key == "end" then
             current_panel.selected_item = #current_panel.items
         elseif key == "enter" then
-            local selected = current_panel.items[current_panel.selected_item]
-            if selected and selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
-                -- Clear absolute path cache when changing directory
-                lfm_files.clear_path_cache()
-                -- If it's a symlink, use the link target path
-                local target_path = selected.is_link and selected.link_target or selected.path
-                -- Ensure root directory is represented as "/"
-                local prev_dir = current_panel.current_dir
-                current_panel.current_dir = target_path == "" and "/" or target_path
-                current_panel.absolute_path = lfm_files.get_absolute_path(current_panel.current_dir)
-                -- Load new directory items
-                current_panel.items = lfm_files.get_directory_items(current_panel.current_dir)
-                sort_items(current_panel.items)
-                -- Restore position if exists, otherwise start from beginning
-                if selected.name == ".." then
-                    -- Try find parent item
-                    local prev_name = lfm_files.get_basename(prev_dir)
-                    local found = 1
-                    for i, item in ipairs(current_panel.items) do
-                        if item.name == prev_name then
-                            found = i
-                            break
-                        end
-                    end
-                    current_panel.selected_item = found
-                else
-                    current_panel.selected_item = 1
-                end
-                current_panel.scroll_offset = 0
-            end
+            handle_enter_key(current_panel)
         elseif key == "view" then
             local selected = current_panel.items[current_panel.selected_item]
             if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
@@ -343,8 +354,6 @@ local function main()
 
             current_panel.items = lfm_files.get_directory_items(current_panel.current_dir)
             sort_items(current_panel.items)
-        elseif key == "terminal" then
-             open_terminal(current_panel.current_dir)
         elseif key == "tab" then
             active_panel = (active_panel == 1) and 2 or 1
         end
