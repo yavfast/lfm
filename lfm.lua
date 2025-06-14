@@ -9,39 +9,16 @@
     Version: 0.1
 ]]
 
--- Execute a system command with LANG=C and return its output as string
-local function exec_command_output(command)
-    local handle = io.popen('LANG=C ' .. command)
-    if not handle then return nil end
-    local output = handle:read("*a")
-    handle:close()
-    return output
-end
+local lfm_files = require("lfm_files")
+local lfm_scr = require("lfm_scr")
 
 local function get_terminal_size()
-    local output = exec_command_output("stty size")
+    local output = lfm_files.exec_command_output("stty size")
     if output then
         local rows, cols = output:match("(%d+)%s+(%d+)")
         return tonumber(rows) or 24, tonumber(cols) or 80
     end
     return 24, 80
-end
-
--- Simple cache for absolute paths
-local abs_path_cache = {}
-local function get_absolute_path(path)
-    local absolute_path = abs_path_cache[path]
-    if absolute_path then
-        return absolute_path
-    end
-    local output = exec_command_output('realpath "' .. path .. '" 2>/dev/null')
-    if output then
-        absolute_path = output:gsub("\n", "")
-        abs_path_cache[path] = absolute_path
-        return absolute_path
-    end
-    abs_path_cache[path] = path
-    return path
 end
 
 local HEADER_LINES = 2
@@ -51,9 +28,9 @@ local FOOTER_LINES = 2
 local dir_positions = {}
 
 -- Panel data structure
-local panel = {
+local panel_info = {
     current_dir = ".",
-    absolute_path = get_absolute_path("."),
+    absolute_path = lfm_files.get_absolute_path("."),
     selected_item = 1,
     scroll_offset = 0,
     items = {},
@@ -62,95 +39,11 @@ local panel = {
 
 -- Two panels
 local panel1 = {}
-for k, v in pairs(panel) do panel1[k] = v end
+for k, v in pairs(panel_info) do panel1[k] = v end
 local panel2 = {}
-for k, v in pairs(panel) do panel2[k] = v end
+for k, v in pairs(panel_info) do panel2[k] = v end
 
 local active_panel = 1 -- 1 for panel1, 2 for panel2
-
-local function get_directory_items(path)
-    local items = {}
-    local absolute_path = get_absolute_path(path)
-    
-    if path ~= "/" and absolute_path ~= "/" then
-        local parent_path = absolute_path:match("(.*)/[^/]*$") or "/"
-        if parent_path ~= "/" then
-            table.insert(items, {
-                name = "..",
-                path = parent_path,
-                is_dir = true,
-                is_link = false,
-                link_target = nil,
-                permissions = "-r--r--r--",
-                size = "0",
-                modified = ""
-            })
-        end
-    end
-    
-    local handle = io.popen('LANG=C stat -c "%F|%n|%s|%Y|%A|%N" "' .. path .. '"/* "' .. path .. '"/.* 2>/dev/null')
-    if handle then
-        for line in handle:lines() do
-            local file_type, name, size, timestamp, permissions, link_info = line:match("([^|]+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)")
-            if name then
-                -- Extract only filename without path
-                local filename = name:match("([^/]+)$")
-                local is_dir = file_type:match("directory")
-                local is_link = not is_dir and file_type:match("symbolic link")
-                local link_target = nil
-                
-                if filename ~= "." and filename ~= ".." then
-                    if is_link then
-                        -- Extract link target from the link_info
-                        link_target = link_info:match("'[^']+'%s*->%s*'([^']+)'")
-                        if link_target then
-                            -- Handle different link_target formats
-                            if not link_target:match("^/") then
-                                -- If it's a relative path, add current path
-                                if path == "/" then
-                                    link_target = path .. link_target
-                                else
-                                    link_target = path .. "/" .. link_target
-                                end
-                            end
-                            
-                            -- Get absolute path of the link target
-                            link_target = get_absolute_path(link_target)
-                            -- Check if target is a directory
-                            local target_handle = io.popen('LANG=C stat -c "%F" "' .. link_target .. '" 2>/dev/null')
-                            if target_handle then
-                                local target_type = target_handle:read("*a"):gsub("\n", "")
-                                target_handle:close()
-                                is_dir = target_type:match("directory")
-                            end
-                        end
-                    end
-                    
-                    -- Form path with root directory
-                    local item_path
-                    if path == "/" then
-                        item_path = path .. filename
-                    else
-                        item_path = path .. "/" .. filename
-                    end
-                    
-                    table.insert(items, {
-                        name = filename,
-                        path = item_path,
-                        is_dir = is_dir,
-                        is_link = is_link,
-                        link_target = link_target,
-                        permissions = permissions,
-                        size = size,
-                        modified = timestamp
-                    })
-                end
-            end
-        end
-        handle:close()
-    end
-    return items
-end
 
 local function sort_items(items)
     table.sort(items, function(a, b)
@@ -168,62 +61,14 @@ local function sort_items(items)
     end)
 end
 
-local function clear_screen()
-    io.write("\27[2J\27[H")
-end
-
--- Function to move cursor
-local function move_cursor(row, col)
-    io.write(string.format("\27[%d;%dH", row, col))
-end
-
-local colors = {
-    reset = "0",
-    black = "30",
-    red = "31",
-    green = "32",
-    blue = "34",
-    yellow = "33",
-    white = "37",
-    gray = "90",
-    silver = "37",
-    bright_red = "91",
-    bright_green = "92",
-    bright_yellow = "93",
-    bright_blue = "94",
-    bright_white = "97"
-}
-
--- Function to set text color
-local function set_color(color)
-    io.write("\27[" .. (colors[color] or "0") .. "m")
-end
-
--- Function to draw colored text
-local function draw_text(text)
-    io.write(text)
-end
-
--- Function to draw colored text
-local function draw_text_xy(row, col, text)
-    move_cursor(row, col)
-    draw_text(text)
-end
-
--- Function to draw colored text
-local function draw_text_colored(color, text)
-    set_color(color)
-    draw_text(text)
-end
-
 -- Function to get key press
 local function get_key()
     -- Set terminal to "raw" mode
     os.execute("stty raw -echo")
     
     local key = io.read(1)
-    local result = nil
-    
+    local result
+
     if key == "\27" then -- ESC
         local next1 = io.read(1)
         if next1 == "[" then
@@ -285,16 +130,16 @@ local function view_file(path) -- Note: AI, don`t remove ")"
     handle:close()
     
     -- Get absolute path for the header
-    local absolute_path = get_absolute_path(path)
+    local absolute_path = lfm_files.get_absolute_path(path)
     
     -- Clear screen
-    clear_screen()
+    lfm_scr.clear_screen()
     
     -- Display header
-    draw_text_colored("bright_blue", "View file: " .. absolute_path .. "\n")
-    draw_text_colored("gray", string.rep("=", view_width) .. "\n")
-    
-    set_color("white")
+    lfm_scr.draw_text_colored("bright_blue", "View file: " .. absolute_path .. "\n")
+    lfm_scr.draw_text_colored("gray", string.rep("=", view_width) .. "\n")
+
+    lfm_scr.set_color("white")
 
     -- Display content
     local lines = {}
@@ -311,15 +156,15 @@ local function view_file(path) -- Note: AI, don`t remove ")"
     while true do
         -- Clear content area
         for i = 1, max_lines do
-            move_cursor(HEADER_LINES + i, 1)
-            draw_text(string.rep(" ", view_width))
+            lfm_scr.move_cursor(HEADER_LINES + i, 1)
+            lfm_scr.draw_text(string.rep(" ", view_width))
         end
         
         -- Display current portion of content
         for i = 1, max_lines do
             local line_num = current_line + i - 1
             if line_num <= #lines then
-                move_cursor(HEADER_LINES + i, 1)
+                lfm_scr.move_cursor(HEADER_LINES + i, 1)
                 local line = lines[line_num]
                 if line then
                     -- Apply horizontal scroll
@@ -330,17 +175,17 @@ local function view_file(path) -- Note: AI, don`t remove ")"
                     if #line > view_width then
                         line = line:sub(1, view_width - 3) .. "..."
                     end
-                    draw_text(line .. "\n")
+                    lfm_scr.draw_text(line .. "\n")
                 end
             end
         end
         
         -- Display hint (ASCII only)
-        move_cursor(view_height + HEADER_LINES + 1, 1)
+        lfm_scr.move_cursor(view_height + HEADER_LINES + 1, 1)
         local position_info = string.format("[%d-%d/%d] ", current_line, current_line + max_lines - 1, #lines)
-        draw_text_colored("green", position_info)
-        draw_text_colored("gray", string.rep("=", view_width - #position_info) .. "\n")
-        draw_text_colored("gray", "Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back\n")
+        lfm_scr.draw_text_colored("green", position_info)
+        lfm_scr.draw_text_colored("gray", string.rep("=", view_width - #position_info) .. "\n")
+        lfm_scr.draw_text_colored("gray", "Up/Down: scroll  Left/Right: horiz scroll  PgUp/PgDn: page  Home/End: top/bottom  q: back\n")
         
         -- Wait for key press
         local key = get_key()
@@ -394,7 +239,6 @@ local function pad_string(str, width, align_left)
     -- If string is too long, truncate it and add "~"
     if current_width > width then
         local truncated = ""
-        local current_pos = 1
         local current_width = 0
         
         -- Iterate through Unicode characters
@@ -442,7 +286,7 @@ end
 
 -- Function to get RAM information
 local function get_ram_info()
-    local output = exec_command_output("free")
+    local output = lfm_files.exec_command_output("free")
     if output then
         local total, used = output:match("Mem:%s+(%d+)%s+(%d+)")
         if total and used then
@@ -468,38 +312,38 @@ end
 -- Function to draw the footer section (position info and hints)
 local function draw_footer(panel1, panel2, view_height, view_width)
     -- Display hint with position info
-    move_cursor(view_height + HEADER_LINES + 1, 1)
+    lfm_scr.move_cursor(view_height + HEADER_LINES + 1, 1)
     local position_info1 = string.format("[%d/%d]", panel1.selected_item - 1, #panel1.items - 1)
     local position_info2 = string.format("[%d/%d]", panel2.selected_item - 1, #panel2.items - 1)
 
     -- Draw left vertical separator
-    draw_text_colored("white", "|")
+    lfm_scr.draw_text_colored("white", "|")
 
     -- Draw panel 1 position info and padding
-    move_cursor(view_height + HEADER_LINES + 1, 2)
-    draw_text_colored("green", position_info1)
+    lfm_scr.move_cursor(view_height + HEADER_LINES + 1, 2)
+    lfm_scr.draw_text_colored("green", position_info1)
 
     local pad1 = panel1.view_width - #position_info1
     if pad1 < 0 then pad1 = 0 end -- Ensure non-negative padding
-    draw_text_colored("white", string.rep("=", pad1))
+    lfm_scr.draw_text_colored("white", string.rep("=", pad1))
 
     -- Draw vertical separator between panels
-    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 2)
-    draw_text_colored("white", "|")
+    lfm_scr.move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 2)
+    lfm_scr.draw_text_colored("white", "|")
 
     -- Draw panel 2 position info and padding
-    move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 3)
-    draw_text_colored("green", position_info2)
+    lfm_scr.move_cursor(view_height + HEADER_LINES + 1, panel1.view_width + 3)
+    lfm_scr.draw_text_colored("green", position_info2)
 
     local pad2 = panel2.view_width - #position_info2
     if pad2 < 0 then pad2 = 0 end -- Ensure non-negative padding
-    draw_text_colored("white", string.rep("=", pad2))
+    lfm_scr.draw_text_colored("white", string.rep("=", pad2))
 
     -- Draw right vertical separator
-    move_cursor(view_height + HEADER_LINES + 1, view_width)
-    draw_text_colored("white", "|")
-    draw_text("\n")
-    draw_text_colored("gray", " Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
+    lfm_scr.move_cursor(view_height + HEADER_LINES + 1, view_width)
+    lfm_scr.draw_text_colored("white", "|")
+    lfm_scr.draw_text("\n")
+    lfm_scr.draw_text_colored("gray", " Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
 end
 
 -- Function to draw the header section (LFM info, RAM info, and path separator)
@@ -507,11 +351,11 @@ local function draw_header(panel1, panel2, active_panel, view_width)
     -- Display RAM information in the header (LFM left, RAM right)
     local lfm_info = "Lua File Manager (v0.1)"
     local ram_info = get_ram_info()
-    draw_text_colored("bright_white", lfm_info)
+    lfm_scr.draw_text_colored("bright_white", lfm_info)
     local pad = view_width - #lfm_info - #ram_info
     if pad < 1 then pad = 1 end
-    draw_text_colored("black", string.rep(" ", pad))
-    draw_text_colored("green", ram_info .. "\n")
+    lfm_scr.draw_text_colored("black", string.rep(" ", pad))
+    lfm_scr.draw_text_colored("green", ram_info .. "\n")
 
     -- Display path in the separator line (left-aligned, =[ path ]===...)
     local path_str1 = panel1.absolute_path
@@ -528,15 +372,15 @@ local function draw_header(panel1, panel2, active_panel, view_width)
 
     -- Highlight active panel path
     if active_panel == 1 then
-        draw_text_colored("bright_white", "|" .. sep1)
-        draw_text_colored("white", "|" .. sep2)
+        lfm_scr.draw_text_colored("bright_white", "|" .. sep1)
+        lfm_scr.draw_text_colored("white", "|" .. sep2)
     else
-        draw_text_colored("white", "|" .. sep1)
-        draw_text_colored("bright_white", "|" .. sep2)
+        lfm_scr.draw_text_colored("white", "|" .. sep1)
+        lfm_scr.draw_text_colored("bright_white", "|" .. sep2)
     end
-    draw_text_colored("white", "|") -- Right separator
+    lfm_scr.draw_text_colored("white", "|") -- Right separator
 
-    draw_text("\n")
+    lfm_scr.draw_text("\n")
 end
 
 -- Function to draw a single row of a panel
@@ -545,12 +389,12 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
     local item = panel.items[item_index]
 
     -- Draw panel content
-    move_cursor(HEADER_LINES + row_index, start_col)
+    lfm_scr.move_cursor(HEADER_LINES + row_index, start_col)
     if item then
         if item_index == panel.selected_item and is_active then
-            draw_text_colored("bright_white", ">")
+            lfm_scr.draw_text_colored("bright_white", ">")
         else
-            draw_text(" ")
+            lfm_scr.draw_text(" ")
         end
 
         -- Check if we have read permissions
@@ -558,13 +402,13 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         local is_executable = check_permissions(item.permissions, "execute")
 
         if not has_read then
-            draw_text_colored("red", " ")
+            lfm_scr.draw_text_colored("red", " ")
         elseif item.is_dir then
-            draw_text_colored("bright_white", "/")
+            lfm_scr.draw_text_colored("bright_white", "/")
         elseif is_executable then
-            draw_text_colored("green", "*")
+            lfm_scr.draw_text_colored("green", "*")
         else
-            draw_text_colored("white", " ")
+            lfm_scr.draw_text_colored("white", " ")
         end
 
         -- Convert timestamp to readable date
@@ -583,15 +427,15 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         local size_padded = pad_string(size_str, math.floor(panel_view_width * 0.2), false)
         local date_padded = pad_string(date_str, math.floor(panel_view_width * 0.3), true)
 
-        draw_text(string.format("%s %s %s", name_padded, size_padded, date_padded))
+        lfm_scr.draw_text(string.format("%s %s %s", name_padded, size_padded, date_padded))
 
         -- Display link target if it's a symlink
         if item.is_link and item.link_target then
-            draw_text(" -> " .. item.link_target)
+            lfm_scr.draw_text(" -> " .. item.link_target)
         end
 
     else
-        draw_text(string.rep(" ", panel_view_width))
+        lfm_scr.draw_text(string.rep(" ", panel_view_width))
     end
 end
 
@@ -600,23 +444,23 @@ local function draw_panels_content(panel1, panel2, active_panel, view_height, vi
     -- Display file list
     for i = 1, view_height do
         -- Draw left vertical separator
-        move_cursor(HEADER_LINES + i, 1)
-        draw_text_colored("white", "|")
+        lfm_scr.move_cursor(HEADER_LINES + i, 1)
+        lfm_scr.draw_text_colored("white", "|")
 
         -- Draw panel 1 row
         draw_panel_row(panel1, i, 2, active_panel == 1, panel1.view_width)
 
         -- Add vertical separator between panels
-        move_cursor(HEADER_LINES + i, panel1.view_width + 2)
-        draw_text_colored("white", "|")
+        lfm_scr.move_cursor(HEADER_LINES + i, panel1.view_width + 2)
+        lfm_scr.draw_text_colored("white", "|")
 
         -- Draw panel 2 row
         draw_panel_row(panel2, i, panel1.view_width + 3, active_panel == 2, panel2.view_width)
 
         -- Draw right vertical separator
-        move_cursor(HEADER_LINES + i, view_width)
-        draw_text_colored("white", "|")
-        draw_text("\n")
+        lfm_scr.move_cursor(HEADER_LINES + i, view_width)
+        lfm_scr.draw_text_colored("white", "|")
+        lfm_scr.draw_text("\n")
     end
 end
 
@@ -635,7 +479,7 @@ local function display_file_manager()
     update_scroll(panel1)
     update_scroll(panel2)
 
-    clear_screen()
+    lfm_scr.clear_screen()
 
     -- Draw the header section
     draw_header(panel1, panel2, active_panel, view_width)
@@ -653,27 +497,27 @@ local function edit_file(path)
     os.execute("stty -raw echo")
     
     -- Clear screen before launching vi
-    clear_screen()
+    lfm_scr.clear_screen()
     
     -- Launch vi editor
     os.execute("vi " .. path)
     
     -- Force redraw of the interface
-    clear_screen()
+    lfm_scr.clear_screen()
     display_file_manager()
 end
 
 -- Main loop
 local function main()
     -- Initial load of directory items for both panels
-    panel1.items = get_directory_items(panel1.current_dir)
+    panel1.items = lfm_files.get_directory_items(panel1.current_dir)
     sort_items(panel1.items)
-    panel1.absolute_path = get_absolute_path(panel1.current_dir)
+    panel1.absolute_path = lfm_files.get_absolute_path(panel1.current_dir)
 
     panel2.current_dir = panel1.current_dir -- Start panel2 in the same directory
-    panel2.items = get_directory_items(panel2.current_dir)
+    panel2.items = lfm_files.get_directory_items(panel2.current_dir)
     sort_items(panel2.items)
-    panel2.absolute_path = get_absolute_path(panel2.current_dir)
+    panel2.absolute_path = lfm_files.get_absolute_path(panel2.current_dir)
     
     while true do
         display_file_manager()
@@ -702,14 +546,14 @@ local function main()
                 -- Save current position before changing directory
                 dir_positions[current_panel.current_dir] = current_panel.selected_item
                 -- Clear absolute path cache when changing directory
-                abs_path_cache = {}
+                lfm_files.clear_path_cache()
                 -- If it's a symlink, use the link target path
                 local target_path = selected.is_link and selected.link_target or selected.path
                 -- Ensure root directory is represented as "/"
                 current_panel.current_dir = target_path == "" and "/" or target_path
-                current_panel.absolute_path = get_absolute_path(current_panel.current_dir)
+                current_panel.absolute_path = lfm_files.get_absolute_path(current_panel.current_dir)
                 -- Load new directory items
-                current_panel.items = get_directory_items(current_panel.current_dir)
+                current_panel.items = lfm_files.get_directory_items(current_panel.current_dir)
                 sort_items(current_panel.items)
                 -- Restore position if exists, otherwise start from beginning
                 current_panel.selected_item = dir_positions[current_panel.current_dir] or 1
@@ -731,9 +575,9 @@ local function main()
             end
         elseif key == "refresh" then
             -- Clear absolute path cache
-            abs_path_cache = {}
+            lfm_files.clear_path_cache()
 
-            current_panel.items = get_directory_items(current_panel.current_dir)
+            current_panel.items = lfm_files.get_directory_items(current_panel.current_dir)
             sort_items(current_panel.items)
         elseif key == "terminal" then
              open_terminal(current_panel.current_dir)
