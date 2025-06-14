@@ -15,9 +15,6 @@ local lfm_scr = require("lfm_scr")
 local lfm_view = require("lfm_view")
 local lfm_str = require("lfm_str")
 
-local HEADER_LINES = 2
-local FOOTER_LINES = 2
-
 -- Panel data structure
 local panel_info = {
     current_dir = ".",
@@ -25,7 +22,8 @@ local panel_info = {
     selected_item = 1,
     scroll_offset = 0,
     items = {},
-    view_width = 0
+    view_width = 0,
+    view_height = 0
 }
 
 -- Two panels
@@ -61,8 +59,8 @@ end
 local function update_scroll(panel)
     if panel.selected_item < panel.scroll_offset + 1 then
         panel.scroll_offset = panel.selected_item - 1
-    elseif panel.selected_item > panel.scroll_offset + screen_info.view_height then
-        panel.scroll_offset = panel.selected_item - screen_info.view_height
+    elseif panel.selected_item > panel.scroll_offset + panel.view_height then
+        panel.scroll_offset = panel.selected_item - panel.view_height
     end
     if panel.scroll_offset < 0 then panel.scroll_offset = 0 end
 end
@@ -70,7 +68,7 @@ end
 -- Function to draw the footer section (position info and hints)
 local function draw_footer(panel1_info, panel2_info)
     -- Display hint with position info
-    lfm_scr.move_cursor(screen_info.view_height + HEADER_LINES + 1, 1)
+    lfm_scr.move_cursor(screen_info.view_height - 1, 1)
     local position_info1 = string.format("[%d/%d]", panel1_info.selected_item - 1, #panel1_info.items - 1)
     local position_info2 = string.format("[%d/%d]", panel2_info.selected_item - 1, #panel2_info.items - 1)
 
@@ -78,7 +76,7 @@ local function draw_footer(panel1_info, panel2_info)
     lfm_scr.draw_text_colored("white", "|")
 
     -- Draw panel 1 position info and padding
-    lfm_scr.move_cursor(screen_info.view_height + HEADER_LINES + 1, 2)
+    lfm_scr.move_cursor(screen_info.view_height - 1, 2)
     lfm_scr.draw_text_colored("green", position_info1)
 
     local pad1 = panel1_info.view_width - #position_info1
@@ -86,11 +84,11 @@ local function draw_footer(panel1_info, panel2_info)
     lfm_scr.draw_text_colored("white", string.rep("=", pad1))
 
     -- Draw vertical separator between panels
-    lfm_scr.move_cursor(screen_info.view_height + HEADER_LINES + 1, panel1_info.view_width + 2)
+    lfm_scr.move_cursor(screen_info.view_height - 1, panel1_info.view_width + 2)
     lfm_scr.draw_text_colored("white", "|")
 
     -- Draw panel 2 position info and padding
-    lfm_scr.move_cursor(screen_info.view_height + HEADER_LINES + 1, panel1_info.view_width + 3)
+    lfm_scr.move_cursor(screen_info.view_height - 1, panel1_info.view_width + 3)
     lfm_scr.draw_text_colored("green", position_info2)
 
     local pad2 = panel2_info.view_width - #position_info2
@@ -98,7 +96,7 @@ local function draw_footer(panel1_info, panel2_info)
     lfm_scr.draw_text_colored("white", string.rep("=", pad2))
 
     -- Draw right vertical separator
-    lfm_scr.move_cursor(screen_info.view_height + HEADER_LINES + 1, screen_info.view_width)
+    lfm_scr.move_cursor(screen_info.view_height - 1, screen_info.view_width)
     lfm_scr.draw_text_colored("white", "|")
     lfm_scr.draw_text("\n")
     lfm_scr.draw_text_colored("gray", " Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
@@ -147,7 +145,7 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
     local item = panel.items[item_index]
 
     -- Draw panel content
-    lfm_scr.move_cursor(HEADER_LINES + row_index, start_col)
+    lfm_scr.move_cursor(2 + row_index, start_col)
     if item then
         if item_index == panel.selected_item and is_active then
             lfm_scr.draw_text_colored("bright_white", ">")
@@ -200,23 +198,23 @@ end
 -- Function to draw the content of both panels (the file list)
 local function draw_panels_content(panel1_info, panel2_info, active_panel_idx)
     -- Display file list
-    for i = 1, screen_info.view_height do
+    for i = 1, panel1_info.view_height do
         -- Draw left vertical separator
-        lfm_scr.move_cursor(HEADER_LINES + i, 1)
+        lfm_scr.move_cursor(2 + i, 1)
         lfm_scr.draw_text_colored("white", "|")
 
         -- Draw panel 1 row
         draw_panel_row(panel1_info, i, 2, active_panel_idx == 1, panel1_info.view_width)
 
         -- Add vertical separator between panels
-        lfm_scr.move_cursor(HEADER_LINES + i, panel1_info.view_width + 2)
+        lfm_scr.move_cursor(2 + i, panel1_info.view_width + 2)
         lfm_scr.draw_text_colored("white", "|")
 
         -- Draw panel 2 row
         draw_panel_row(panel2_info, i, panel1_info.view_width + 3, active_panel_idx == 2, panel2_info.view_width)
 
         -- Draw right vertical separator
-        lfm_scr.move_cursor(HEADER_LINES + i, screen_info.view_width)
+        lfm_scr.move_cursor(2 + i, screen_info.view_width)
         lfm_scr.draw_text_colored("white", "|")
         lfm_scr.draw_text("\n")
     end
@@ -225,14 +223,18 @@ end
 -- Function to display file manager interface
 local function display_file_manager()
     -- Update terminal size
-    local view_height, view_width = lfm_sys.get_terminal_size()
-    screen_info.view_height = view_height - HEADER_LINES - FOOTER_LINES - 1
-    screen_info.view_width = view_width
+    local height, width = lfm_sys.get_terminal_size()
+    screen_info.view_height = height - 1
+    screen_info.view_width = width
 
     -- Calculate panel widths considering 3 vertical separators
     local usable_width = screen_info.view_width - 3 -- Account for left, middle, and right separators
     panel1.view_width = math.floor(usable_width / 2)
     panel2.view_width = usable_width - panel1.view_width
+
+    -- Set panel heights (accounting for header and footer)
+    panel1.view_height = screen_info.view_height - 4
+    panel2.view_height = screen_info.view_height - 4
 
     -- Update scroll position for both panels
     update_scroll(panel1)
@@ -332,9 +334,9 @@ local function main()
         elseif key == "down" then
             current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + 1)
         elseif key == "pageup" then
-            current_panel.selected_item = math.max(1, current_panel.selected_item - screen_info.view_height)
+            current_panel.selected_item = math.max(1, current_panel.selected_item - current_panel.view_height)
         elseif key == "pagedown" then
-            current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + screen_info.view_height)
+            current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + current_panel.view_height)
         elseif key == "home" then
             current_panel.selected_item = 1
         elseif key == "end" then
@@ -345,7 +347,7 @@ local function main()
             local selected = current_panel.items[current_panel.selected_item]
             if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
                 local target_path = selected.is_link and selected.link_target or selected.path
-                lfm_view.view_file(target_path, screen_info.view_width, screen_info.view_height, HEADER_LINES)
+                lfm_view.view_file(target_path, screen_info.view_width, screen_info.view_height)
             end
         elseif key == "edit" then
             local selected = current_panel.items[current_panel.selected_item]
