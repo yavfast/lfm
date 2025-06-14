@@ -39,7 +39,7 @@ function M.get_directory_items(path)
                 is_link = false,
                 link_target = nil,
                 permissions = "-r--r--r--",
-                size = "0",
+                size = 0,
                 modified = ""
             })
         end
@@ -91,6 +91,9 @@ function M.get_directory_items(path)
                         item_path = path .. "/" .. filename
                     end
 
+                    -- Convert size to number, use 0 for directories
+                    local size_num = is_dir and 0 or tonumber(size) or 0
+
                     table.insert(items, {
                         name = filename,
                         path = item_path,
@@ -98,7 +101,7 @@ function M.get_directory_items(path)
                         is_link = is_link,
                         link_target = link_target,
                         permissions = permissions,
-                        size = size,
+                        size = size_num,  -- Store as number
                         modified = timestamp
                     })
                 end
@@ -106,6 +109,7 @@ function M.get_directory_items(path)
         end
         handle:close()
     end
+
     return items
 end
 

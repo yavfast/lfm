@@ -176,7 +176,14 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
             end
         end
 
-        local size_str = item.is_dir and "<DIR>" or (item.size or "0")
+        -- Format size string
+        local size_str
+        if item.is_dir then
+            size_str = "<DIR>"
+        else
+            -- Format size with proper units
+            size_str = lfm_sys.format_size(item.size)
+        end
 
         -- Format each column with proper Unicode handling
         local date_width = 16

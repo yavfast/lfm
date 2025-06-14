@@ -18,26 +18,32 @@ function M.get_terminal_size()
     return 24, 80
 end
 
+-- Convert to human readable format
+function M.format_size(bytes)
+    local units = {'', 'K', 'M', 'G', 'T'}
+    local size = bytes
+    local unit_index = 1
+    while size > 1024 and unit_index < #units do
+        size = size / 1024
+        unit_index = unit_index + 1
+    end
+
+    if unit_index > 1 then
+        return string.format("%.1f%s", size, units[unit_index])
+    end
+
+    return tostring(size)
+end
+
 -- Function to get RAM information
 function M.get_ram_info()
     local output = M.exec_command_output("free")
     if output then
         local total, used = output:match("Mem:%s+(%d+)%s+(%d+)")
         if total and used then
-            total = tonumber(total)
-            used = tonumber(used)
-            -- Convert to human readable format
-            local function format_size(bytes)
-                local units = {'KB', 'MB', 'GB'}
-                local size = bytes
-                local unit_index = 1
-                while size > 1024 and unit_index < #units do
-                    size = size / 1024
-                    unit_index = unit_index + 1
-                end
-                return string.format("%.1f %s", size, units[unit_index])
-            end
-            return "RAM: " .. format_size(used) .. " / " .. format_size(total)
+            total = tonumber(total) * 1024
+            used = tonumber(used) * 1024
+            return "RAM: " .. M.format_size(used) .. " / " .. M.format_size(total)
         end
     end
     return "RAM: N/A"
