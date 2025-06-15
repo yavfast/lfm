@@ -126,13 +126,13 @@ function M.handle_input(char)
             -- Return to raw mode after command execution
             os.execute("stty raw -echo")
         end
-    elseif char == "up" then -- Up arrow (history)
+    elseif char == "ctrl_up" then -- Ctrl+Up (history)
         if terminal_state.history_pos > 1 then
             terminal_state.history_pos = terminal_state.history_pos - 1
             terminal_state.command = terminal_state.history[terminal_state.history_pos]
             terminal_state.cursor_pos = #terminal_state.command + 1
         end
-    elseif char == "down" then -- Down arrow (history)
+    elseif char == "ctrl_down" then -- Ctrl+Down (history)
         if terminal_state.history_pos < #terminal_state.history then
             terminal_state.history_pos = terminal_state.history_pos + 1
             terminal_state.command = terminal_state.history[terminal_state.history_pos]
@@ -141,6 +141,14 @@ function M.handle_input(char)
             terminal_state.history_pos = terminal_state.history_pos + 1
             terminal_state.command = ""
             terminal_state.cursor_pos = 1
+        end
+    elseif char == "ctrl_shift_up" then -- Ctrl+Shift+Up (scroll output up)
+        if terminal_state.view_offset < #terminal_state.output then
+            M.scroll_output("up")
+        end
+    elseif char == "ctrl_shift_down" then -- Ctrl+Shift+Down (scroll output down)
+        if terminal_state.view_offset > 0 then
+            M.scroll_output("down")
         end
     elseif char == "right" then -- Right arrow
         if terminal_state.cursor_pos <= #terminal_state.command then

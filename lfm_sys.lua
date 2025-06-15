@@ -91,6 +91,26 @@ function M.get_key()
                 return "home"
             elseif next2 == "F" then -- End
                 return "end"
+            elseif next2 == "1" then
+                local next3 = io.read(1)
+                if next3 == ";" then
+                    local next4 = io.read(1)
+                    if next4 == "5" then
+                        local next5 = io.read(1)
+                        if next5 == "A" then
+                            return "ctrl_up"
+                        elseif next5 == "B" then
+                            return "ctrl_down"
+                        end
+                    elseif next4 == "6" then -- Ctrl+Shift
+                        local next5 = io.read(1)
+                        if next5 == "A" then
+                            return "ctrl_shift_up"
+                        elseif next5 == "B" then
+                            return "ctrl_shift_down"
+                        end
+                    end
+                end
             elseif next2 == "2" then -- F10
                 local next3 = io.read(1)
                 if next3 == "1" then
