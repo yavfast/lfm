@@ -86,8 +86,8 @@ end
 
 -- Function to draw the footer section (position info and hints)
 local function draw_footer(panel1_info, panel2_info)
-    -- Display hint with position info
-    lfm_scr.move_cursor(screen_info.view_height - 1, 1)
+    -- Display hint with position info at the end of main area
+    lfm_scr.move_cursor(screen_layout.main_height, 1)
     local position_info1 = string.format("[%d/%d]", panel1_info.selected_item - 1, #panel1_info.items - 1)
     local position_info2 = string.format("[%d/%d]", panel2_info.selected_item - 1, #panel2_info.items - 1)
 
@@ -95,7 +95,7 @@ local function draw_footer(panel1_info, panel2_info)
     lfm_scr.draw_text_colored("white", "|")
 
     -- Draw panel 1 position info and padding
-    lfm_scr.move_cursor(screen_info.view_height - 1, 2)
+    lfm_scr.move_cursor(screen_layout.main_height, 2)
     lfm_scr.draw_text_colored("green", position_info1)
 
     local pad1 = panel1_info.view_width - #position_info1
@@ -103,11 +103,11 @@ local function draw_footer(panel1_info, panel2_info)
     lfm_scr.draw_text_colored("white", string.rep("=", pad1))
 
     -- Draw vertical separator between panels
-    lfm_scr.move_cursor(screen_info.view_height - 1, panel1_info.view_width + 2)
+    lfm_scr.move_cursor(screen_layout.main_height, panel1_info.view_width + 2)
     lfm_scr.draw_text_colored("white", "|")
 
     -- Draw panel 2 position info and padding
-    lfm_scr.move_cursor(screen_info.view_height - 1, panel1_info.view_width + 3)
+    lfm_scr.move_cursor(screen_layout.main_height, panel1_info.view_width + 3)
     lfm_scr.draw_text_colored("green", position_info2)
 
     local pad2 = panel2_info.view_width - #position_info2
@@ -115,7 +115,7 @@ local function draw_footer(panel1_info, panel2_info)
     lfm_scr.draw_text_colored("white", string.rep("=", pad2))
 
     -- Draw right vertical separator
-    lfm_scr.move_cursor(screen_info.view_height - 1, screen_info.view_width)
+    lfm_scr.move_cursor(screen_layout.main_height, screen_info.view_width)
     lfm_scr.draw_text_colored("white", "|")
 end
 
@@ -271,7 +271,7 @@ local function display_file_manager()
     
     -- Calculate main area height (remaining space after terminal and hints)
     screen_layout.main_height = height - screen_layout.terminal_height - hints_height
-    screen_info.view_height = screen_layout.main_height
+    screen_info.view_height = height -- Store full terminal height
     screen_layout.terminal_start_row = screen_layout.main_height + 1
 
     -- Calculate panel widths considering 3 vertical separators

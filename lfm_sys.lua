@@ -60,13 +60,28 @@ function M.restore_terminal()
     os.execute("stty -raw echo")
 end
 
+-- Function for non-blocking read with timeout
+local function read_with_timeout()
+    -- Set non-blocking read
+    os.execute("stty -icanon min 0 time 1")
+    local char = io.read(1)
+    -- Restore blocking read
+    os.execute("stty -icanon min 1 time 0")
+    return char
+end
+
 -- Function to get key press (assumes terminal is already in raw mode)
 function M.get_key()
     local key = io.read(1)
     if not key then return nil end
 
     if key == "\27" then -- ESC sequence
-        local next1 = io.read(1)
+        -- Check if there's more input (escape sequence) or just ESC
+        local next1 = read_with_timeout()
+        if not next1 then
+            return "escape" -- Pure ESC key
+        end
+        
         if next1 == "[" then
             local next2 = io.read(1)
             if next2 == "A" then

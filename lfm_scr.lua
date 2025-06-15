@@ -3,6 +3,20 @@
 
 local M = {}
 
+-- Enter alternative screen buffer
+function M.enter_fullscreen()
+    io.write("\27[?1049h")  -- Enter alternative screen buffer
+    io.write("\27[?25l")    -- Hide cursor
+    io.flush()
+end
+
+-- Exit alternative screen buffer
+function M.exit_fullscreen()
+    io.write("\27[?25h")    -- Show cursor
+    io.write("\27[?1049l")  -- Exit alternative screen buffer
+    io.flush()
+end
+
 function M.clear_screen()
     io.write("\27[2J\27[H")
 end
