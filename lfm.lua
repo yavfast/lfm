@@ -200,7 +200,7 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         if item.modified then
             local timestamp = tonumber(item.modified)
             if timestamp then
-                date_str = os.date("%Y-%m-%d %H:%M", timestamp)
+                date_str = tostring(os.date("%Y-%m-%d %H:%M", timestamp))
             end
         end
 
