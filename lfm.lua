@@ -121,38 +121,47 @@ end
 
 -- Function to draw the header section (LFM info, RAM info, and path separator)
 local function draw_header(panel1_info, panel2_info, active_panel_idx)
-    -- Display RAM information in the header (LFM left, RAM right)
+    -- Display LFM and RAM information in the header
     local lfm_info = "Lua File Manager (v0.1)"
     local ram_info = lfm_sys.get_ram_info()
+    lfm_scr.move_cursor(1, 1)  -- Ensure we start at the first line
     lfm_scr.draw_text_colored("bright_white", lfm_info)
     local pad = screen_info.view_width - #lfm_info - #ram_info
     if pad < 1 then pad = 1 end
-    lfm_scr.draw_text_colored("black", string.rep(" ", pad))
-    lfm_scr.draw_text_colored("green", ram_info .. "\n")
+    lfm_scr.draw_text(string.rep(" ", pad))
+    lfm_scr.draw_text_colored("green", ram_info)
+    lfm_scr.draw_text("\n")
 
-    -- Display path in the separator line (left-aligned, =[ path ]===...)
+    -- Move to the second line for path display
+    lfm_scr.move_cursor(2, 1)
+
+    -- Create path strings with proper truncation for panel 1
     local path_str1 = panel1_info.absolute_path
-    if #path_str1 > panel1_info.view_width - 2 then -- Adjust truncation for panel width
-        path_str1 = "..." .. path_str1:sub(-(panel1_info.view_width - 5))
+    if #path_str1 > panel1_info.view_width - 4 then
+        path_str1 = "..." .. path_str1:sub(-(panel1_info.view_width - 7))
     end
-    local sep1 = "[" .. path_str1 .. "]" .. string.rep("=", math.max(0, panel1_info.view_width - (#path_str1 + 2)))
+    local sep1 = "[" .. path_str1 .. "]" .. string.rep("=", math.max(0, panel1_info.view_width - #path_str1 - 2))
 
+    -- Create path strings with proper truncation for panel 2
     local path_str2 = panel2_info.absolute_path
-    if #path_str2 > panel2_info.view_width - 2 then -- Adjust truncation for panel width
-        path_str2 = "..." .. path_str2:sub(-(panel2_info.view_width - 5))
+    if #path_str2 > panel2_info.view_width - 4 then
+        path_str2 = "..." .. path_str2:sub(-(panel2_info.view_width - 7))
     end
-     local sep2 = "[" .. path_str2 .. "]" .. string.rep("=", math.max(0, panel2_info.view_width - (#path_str2 + 2)))
+    local sep2 = "[" .. path_str2 .. "]" .. string.rep("=", math.max(0, panel2_info.view_width - #path_str2 - 2))
 
-    -- Highlight active panel path
+    -- Draw the paths with proper highlighting for active panel
     if active_panel_idx == 1 then
-        lfm_scr.draw_text_colored("bright_white", "|" .. sep1)
-        lfm_scr.draw_text_colored("white", "|" .. sep2)
+        lfm_scr.draw_text_colored("white", "|")
+        lfm_scr.draw_text_colored("bright_white", sep1)
+        lfm_scr.draw_text_colored("white", "|")
+        lfm_scr.draw_text_colored("white", sep2)
     else
-        lfm_scr.draw_text_colored("white", "|" .. sep1)
-        lfm_scr.draw_text_colored("bright_white", "|" .. sep2)
+        lfm_scr.draw_text_colored("white", "|")
+        lfm_scr.draw_text_colored("white", sep1)
+        lfm_scr.draw_text_colored("white", "|")
+        lfm_scr.draw_text_colored("bright_white", sep2)
     end
-    lfm_scr.draw_text_colored("white", "|") -- Right separator
-
+    lfm_scr.draw_text_colored("white", "|")
     lfm_scr.draw_text("\n")
 end
 
