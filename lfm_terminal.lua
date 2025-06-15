@@ -18,12 +18,15 @@ local terminal_state = {
 -- Function to draw the terminal window
 function M.draw_terminal(start_row, width, height)
     -- Draw terminal content area
-    terminal_state.content_height = height - 1 -- Account for input line only
+    terminal_state.content_height = height - 1 -- Reserve one line for command input
     
     -- Get the lines of output to display
     local output_lines = {}
-    for line in terminal_state.output:gmatch("[^\r\n]+") do
-        table.insert(output_lines, line)
+    -- Split output by newlines, ensuring we catch the last line even without a newline
+    if terminal_state.output ~= "" then
+        for line in (terminal_state.output .. "\n"):gmatch("([^\n]*)\n") do
+            table.insert(output_lines, line)
+        end
     end
     
     -- Draw output area
@@ -251,8 +254,11 @@ end
 
 -- Function to get output lines count
 function M.get_output_lines_count()
+    if terminal_state.output == "" then
+        return 0
+    end
     local count = 0
-    for _ in terminal_state.output:gmatch("[^\r\n]+") do
+    for _ in (terminal_state.output .. "\n"):gmatch("([^\n]*)\n") do
         count = count + 1
     end
     return count

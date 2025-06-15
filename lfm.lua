@@ -266,12 +266,12 @@ local function display_file_manager()
 
     -- Calculate heights
     local hints_height = 2  -- 1 for separator line, 1 for hints text
-    screen_layout.terminal_height = math.floor(height * screen_layout.terminal_height_percent / 100) - hints_height
+    screen_layout.terminal_height = math.floor(height * screen_layout.terminal_height_percent / 100)
     if screen_layout.terminal_height < 5 then screen_layout.terminal_height = 5 end -- Minimum terminal height
     
     -- Calculate main area height (remaining space after terminal and hints)
     screen_layout.main_height = height - screen_layout.terminal_height - hints_height
-    screen_info.view_height = screen_layout.main_height - 1
+    screen_info.view_height = screen_layout.main_height
     screen_layout.terminal_start_row = screen_layout.main_height + 1
 
     -- Calculate panel widths considering 3 vertical separators
@@ -279,9 +279,9 @@ local function display_file_manager()
     panel1.view_width = math.floor(usable_width / 2)
     panel2.view_width = usable_width - panel1.view_width
 
-    -- Set panel heights (accounting for header and footer)
-    panel1.view_height = screen_layout.main_height - 4
-    panel2.view_height = screen_layout.main_height - 4
+    -- Set panel heights (accounting for header (2 lines) and footer (1 line))
+    panel1.view_height = screen_layout.main_height - 3
+    panel2.view_height = screen_layout.main_height - 3
 
     -- Update scroll position for both panels
     update_scroll(panel1)
