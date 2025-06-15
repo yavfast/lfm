@@ -14,6 +14,15 @@ local lfm_files = require("lfm_files")
 local lfm_scr = require("lfm_scr")
 local lfm_view = require("lfm_view")
 local lfm_str = require("lfm_str")
+local lfm_terminal = require("lfm_terminal")
+
+-- Screen layout configuration
+local screen_layout = {
+    terminal_height_percent = 30, -- Terminal takes 20% of screen height
+    main_height = 0,             -- Will be calculated
+    terminal_height = 0,         -- Will be calculated
+    terminal_start_row = 0       -- Will be calculated
+}
 
 -- Panel data structure
 local panel_info = {
@@ -65,6 +74,16 @@ local function update_scroll(panel)
     if panel.scroll_offset < 0 then panel.scroll_offset = 0 end
 end
 
+-- Function to draw hints at the bottom of the screen
+local function draw_hints()
+    -- Calculate the position after terminal area
+    local hint_row = screen_layout.terminal_start_row + screen_layout.terminal_height
+    lfm_scr.move_cursor(hint_row, 1)
+    lfm_scr.draw_text_colored("gray", string.rep("-", screen_info.view_width))
+    lfm_scr.move_cursor(hint_row + 1, 1)
+    lfm_scr.draw_text_colored("gray", " F3: View | F4: Edit | Ctrl+R: Refresh | Tab: Switch Panel | F10: Quit")
+end
+
 -- Function to draw the footer section (position info and hints)
 local function draw_footer(panel1_info, panel2_info)
     -- Display hint with position info
@@ -98,8 +117,6 @@ local function draw_footer(panel1_info, panel2_info)
     -- Draw right vertical separator
     lfm_scr.move_cursor(screen_info.view_height - 1, screen_info.view_width)
     lfm_scr.draw_text_colored("white", "|")
-    lfm_scr.draw_text("\n")
-    lfm_scr.draw_text_colored("gray", " Up/Down: Navigate | Enter: Open | v: View file | e: Edit file | r: Refresh | Tab: Switch | q: Quit\n")
 end
 
 -- Function to draw the header section (LFM info, RAM info, and path separator)
@@ -236,8 +253,17 @@ end
 local function display_file_manager()
     -- Update terminal size
     local height, width = lfm_sys.get_terminal_size()
-    screen_info.view_height = height - 1
     screen_info.view_width = width
+
+    -- Calculate heights
+    local hints_height = 2  -- 1 for separator line, 1 for hints text
+    screen_layout.terminal_height = math.floor(height * screen_layout.terminal_height_percent / 100) - hints_height
+    if screen_layout.terminal_height < 5 then screen_layout.terminal_height = 5 end -- Minimum terminal height
+    
+    -- Calculate main area height (remaining space after terminal and hints)
+    screen_layout.main_height = height - screen_layout.terminal_height - hints_height
+    screen_info.view_height = screen_layout.main_height - 1
+    screen_layout.terminal_start_row = screen_layout.main_height + 1
 
     -- Calculate panel widths considering 3 vertical separators
     local usable_width = screen_info.view_width - 3 -- Account for left, middle, and right separators
@@ -245,8 +271,8 @@ local function display_file_manager()
     panel2.view_width = usable_width - panel1.view_width
 
     -- Set panel heights (accounting for header and footer)
-    panel1.view_height = screen_info.view_height - 4
-    panel2.view_height = screen_info.view_height - 4
+    panel1.view_height = screen_layout.main_height - 4
+    panel2.view_height = screen_layout.main_height - 4
 
     -- Update scroll position for both panels
     update_scroll(panel1)
@@ -262,6 +288,12 @@ local function display_file_manager()
 
     -- Draw the footer section
     draw_footer(panel1, panel2)
+
+    -- Draw the terminal window
+    lfm_terminal.draw_terminal(screen_layout.terminal_start_row, screen_info.view_width, screen_layout.terminal_height)
+
+    -- Draw hints at the bottom
+    draw_hints()
 end
 
 -- Function to edit file using vi
@@ -320,8 +352,80 @@ local function handle_enter_key(current_panel)
     end
 end
 
--- Main loop
+-- Function to handle navigation and file operations
+local function handle_navigation_key(key)
+    if not lfm_terminal.is_editing() then
+        local current_panel = (active_panel == 1) and panel1 or panel2
+        
+        if key == "up" or key == "down" then
+            if key == "up" then
+                current_panel.selected_item = math.max(1, current_panel.selected_item - 1)
+            else
+                current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + 1)
+            end
+            return true
+        elseif key == "pageup" or key == "pagedown" or key == "home" or key == "end" then
+            if key == "pageup" then
+                current_panel.selected_item = math.max(1, current_panel.selected_item - current_panel.view_height)
+            elseif key == "pagedown" then
+                current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + current_panel.view_height)
+            elseif key == "home" then
+                current_panel.selected_item = 1
+            elseif key == "end" then
+                current_panel.selected_item = #current_panel.items
+            end
+            return true
+        elseif key == "tab" then
+            active_panel = active_panel == 1 and 2 or 1
+            return true
+        elseif key == "enter" then
+            handle_enter_key(current_panel)
+            return true
+        elseif key == "view" then -- F3
+            local selected = current_panel.items[current_panel.selected_item]
+            if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
+                -- Temporarily restore terminal mode for external viewer
+                lfm_sys.restore_terminal()
+                local target_path = selected.is_link and selected.link_target or selected.path
+                lfm_view.view_file(target_path, screen_info.view_width, screen_info.view_height)
+                -- Re-initialize terminal for raw input after viewer exits
+                lfm_sys.init_terminal()
+            end
+            return true
+        elseif key == "edit" then -- F4
+            local selected = current_panel.items[current_panel.selected_item]
+            if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "write") then
+                -- Temporarily restore terminal mode for editor
+                lfm_sys.restore_terminal()
+                local target_path = selected.is_link and selected.link_target or selected.path
+                edit_file(target_path)
+                -- Re-initialize terminal for raw input after editor exits
+                lfm_sys.init_terminal()
+            end
+            return true
+        elseif key == "refresh" then -- Ctrl+R
+            -- Refresh both panels
+            local prev_dir1 = panel1.items[panel1.selected_item].name
+            local prev_dir2 = panel2.items[panel2.selected_item].name
+            open_dir(panel1, panel1.current_dir, prev_dir1)
+            open_dir(panel2, panel2.current_dir, prev_dir2)
+            return true
+        end
+    end
+    
+    -- For left/right navigation keys, try terminal navigation first
+    if key == "left" or key == "right" then
+        return lfm_terminal.handle_navigation_key(key)
+    end
+    
+    return false
+end
+
+-- Function to run the main event loop
 local function main()
+    -- Clear terminal before starting
+    os.execute("clear")
+    
     -- Initial load of directory items for both panels
     panel1.items = lfm_files.get_directory_items(panel1.current_dir)
     sort_items(panel1.items)
@@ -332,52 +436,31 @@ local function main()
     sort_items(panel2.items)
     panel2.absolute_path = lfm_files.get_absolute_path(panel2.current_dir)
     
+    -- Initialize terminal for raw input
+    lfm_sys.init_terminal()
+    
     while true do
         display_file_manager()
         
+        -- Get key input (terminal is already in raw mode)
         local key = lfm_sys.get_key()
         
-        local current_panel = (active_panel == 1) and panel1 or panel2
-
-        if key == "quit" then
+        -- Handle special keys
+        if key == "quit" then -- F10
             break
-        elseif key == "up" then
-            current_panel.selected_item = math.max(1, current_panel.selected_item - 1)
-        elseif key == "down" then
-            current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + 1)
-        elseif key == "pageup" then
-            current_panel.selected_item = math.max(1, current_panel.selected_item - current_panel.view_height)
-        elseif key == "pagedown" then
-            current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + current_panel.view_height)
-        elseif key == "home" then
-            current_panel.selected_item = 1
-        elseif key == "end" then
-            current_panel.selected_item = #current_panel.items
-        elseif key == "enter" then
-            handle_enter_key(current_panel)
-        elseif key == "view" then
-            local selected = current_panel.items[current_panel.selected_item]
-            if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "read") then
-                local target_path = selected.is_link and selected.link_target or selected.path
-                lfm_view.view_file(target_path, screen_info.view_width, screen_info.view_height)
+        elseif key then
+            if not handle_navigation_key(key) then
+                -- All other characters go to terminal
+                lfm_terminal.handle_input(key)
             end
-        elseif key == "edit" then
-            local selected = current_panel.items[current_panel.selected_item]
-            if selected and not selected.is_dir and lfm_files.check_permissions(selected.permissions, "write") then
-                -- If it's a symlink, use the link target path
-                local target_path = selected.is_link and selected.link_target or selected.path
-                edit_file(target_path)
-            end
-        elseif key == "refresh" then
-            -- Clear absolute path cache
-            lfm_files.clear_path_cache()
-
-            current_panel.items = lfm_files.get_directory_items(current_panel.current_dir)
-            sort_items(current_panel.items)
-        elseif key == "tab" then
-            active_panel = (active_panel == 1) and 2 or 1
+        else
+            -- Invalid key, just continue
+            -- Don't try to handle nil key values
         end
     end
+    
+    -- Clean up and restore terminal mode before exit
+    lfm_sys.restore_terminal()
 end
 
 -- Run program

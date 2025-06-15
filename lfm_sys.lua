@@ -50,62 +50,75 @@ function M.get_ram_info()
 end
 
 
--- Function to get key press
-function M.get_key()
-    -- Set terminal to "raw" mode
+-- Initialize terminal in raw mode
+function M.init_terminal()
     os.execute("stty raw -echo")
+end
 
+-- Restore terminal to normal mode
+function M.restore_terminal()
+    os.execute("stty -raw echo")
+end
+
+-- Function to get key press (assumes terminal is already in raw mode)
+function M.get_key()
     local key = io.read(1)
-    local result
+    if not key then return nil end
 
-    if key == "\27" then -- ESC
+    if key == "\27" then -- ESC sequence
         local next1 = io.read(1)
         if next1 == "[" then
             local next2 = io.read(1)
             if next2 == "A" then
-                result = "up"
+                return "up"
             elseif next2 == "B" then
-                result = "down"
+                return "down"
             elseif next2 == "C" then
-                result = "right"
+                return "right"
             elseif next2 == "D" then
-                result = "left"
+                return "left"
             elseif next2 == "5" then -- PageUp
                 local next3 = io.read(1)
                 if next3 == "~" then
-                    result = "pageup"
+                    return "pageup"
                 end
             elseif next2 == "6" then -- PageDown
                 local next3 = io.read(1)
                 if next3 == "~" then
-                    result = "pagedown"
+                    return "pagedown"
                 end
             elseif next2 == "H" then -- Home
-                result = "home"
+                return "home"
             elseif next2 == "F" then -- End
-                result = "end"
+                return "end"
+            elseif next2 == "2" then -- F10
+                local next3 = io.read(1)
+                if next3 == "1" then
+                    local next4 = io.read(1)
+                    if next4 == "~" then
+                        return "quit"
+                    end
+                end
+            end
+        elseif next1 == "O" then -- F3, F4
+            local next2 = io.read(1)
+            if next2 == "R" then -- F3
+                return "view"
+            elseif next2 == "S" then -- F4
+                return "edit"
             end
         end
+        return nil -- Invalid escape sequence
     elseif key == "\13" then -- Enter
-        result = "enter"
-    elseif key == "q" then
-        result = "quit"
-    elseif key == "v" then
-        result = "view"
-    elseif key == "e" then
-        result = "edit"
-    elseif key == "r" then
-        result = "refresh"
-    elseif key == "t" then
-        result = "terminal"
+        return "enter"
+    elseif key == "\18" then -- Ctrl+R (ASCII 18)
+        return "refresh"
     elseif key == "\t" then -- Handle Tab key
-        result = "tab"
+        return "tab"
+    else
+        -- Return any other character as is
+        return key
     end
-
-    -- Return terminal to normal mode
-    os.execute("stty -raw echo")
-
-    return result
 end
 
 
