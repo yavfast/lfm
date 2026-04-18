@@ -8,14 +8,14 @@ and Norton Commander, scaled down to a single-file script you can drop into
 ## Screenshot
 
 ```
-Lua File Manager (v0.1)                                        RAM: 9.2G / 125.8G
+Lua File Manager (v0.1)                                   RAM: 9.2G / 125.8G
 |[/home/you/projects/lfm]==========|[/home/you]============================|
 |/..                     <DIR>     |/..                     <DIR>          |
 |/docs                   <DIR>     |/bin                    <DIR>          |
 | lfm.lua              17.5K 17:06 | Documents              <DIR>          |
 | lfm_files.lua         5.1K 17:08 | Downloads              <DIR>          |
 | lfm_sys.lua           5.1K 17:05 | README.md              1.2K 16:40     |
-| README.md              322  16:40|                                       |
+| README.md              322 16:40 |                                       |
 |[3/7]=============================|[0/5]==================================|
 
 $ pwd
