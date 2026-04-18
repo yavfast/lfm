@@ -22,7 +22,15 @@ rules:
   - id: architecture.no_external_deps
     category: architecture
     severity: must
-    summary: "Zero external Lua libraries — only stdlib + Unix shell tools via io.popen/os.execute."
+    summary: "Zero external Lua libraries — only stdlib + BusyBox-compatible shell tools via io.popen/os.execute."
+  - id: architecture.busybox_flag_subset
+    category: architecture
+    severity: must
+    summary: "Shell flags must work on both BusyBox 1.24+ and GNU; GNU-only flags require a capability probe + fallback."
+  - id: architecture.memory_and_fork_budgets
+    category: architecture
+    severity: must
+    summary: "Size-cap long-running buffers (history, output); zero forks per keystroke on navigation paths."
   - id: architecture.shell_lang_c
     category: architecture
     severity: should

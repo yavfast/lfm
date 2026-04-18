@@ -4,6 +4,15 @@ Dev-flow documentation for the **Lua File Manager** — a terminal two-panel fil
 
 All docs were produced by the [onboard procedure](../.dev_flow/onboard/) from the existing codebase.
 
+## Cross-cutting documents
+
+| Document | Concept | Spec | Plan |
+|----------|---------|------|------|
+| **Platform constraints** — IoT/BusyBox/plain-Lua target | [C_PLT](./platform_constraints.concept.md) | [SP_PLT](./platform_constraints.sp.md) | — |
+| **Feature roadmap** — backlog of candidate features with IoT feasibility | — | — | [PL_RMP](./roadmap.plan.md) |
+
+> **Read [C_PLT](./platform_constraints.concept.md) before designing any new feature** — it bounds what's acceptable (no LuaRocks, no FFI, BusyBox-compatible shell flags only).
+
 ## Modules by dependency layer
 
 ### Layer 0 — foundation (no project deps)
