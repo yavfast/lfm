@@ -30,21 +30,18 @@ The single biggest gap between LFM and Midnight Commander. Without these, LFM is
 
 ### A1. Copy / Move / Delete / Rename / Mkdir  {#task-r-ops-01}
 - **Keys:** `F5` copy, `F6` move-or-rename, `F7` mkdir, `F8`/`Delete` delete.
-- **Modules:** new `lfm_ops.lua` (Layer 1), prompt UI in `lfm.lua`.
-- **Shell:** `cp -r -- src dst`, `mv -- src dst`, `rm -rf -- path`, `mkdir -p -- path` — all BusyBox core.
-- **Feasibility:** ✅ native. Priority: **P0**. Status: proposed.
-- **Notes:** Need a modal prompt widget (target path entry, confirmation). Destructive ops require explicit confirmation dialog.
+- **Modules:** new `lfm_ops.lua` (Layer 1), prompt UI via new `lfm_prompt.lua`.
+- **Shell:** `cp -r -f -- src dst`, `mv -f -- src dst`, `rm -rf -- path`, `mkdir -p -- path` — all BusyBox core.
+- **Feasibility:** ✅ native. Priority: **P0**. Status: **done** (see [PL_OPS](./file_operations.plan.md)).
 
 ### A2. Multi-select  {#task-r-ops-02}
-- **Keys:** `Insert` toggle, `*` invert, `+` / `-` by glob mask.
-- **Modules:** extend `Panel` in `lfm.lua` with `selected_set`.
-- **Shell:** none (pure in-memory).
-- **Feasibility:** ✅ native. Priority: **P0**. Status: proposed.
-- **Notes:** Feeds into A1 — batch ops iterate the selected set.
+- **Keys:** `Insert` toggle, `*` invert. (`+` / `-` by glob mask deferred — backlog.)
+- **Modules:** `Panel.selected` set keyed by name.
+- **Feasibility:** ✅ native. Priority: **P0**. Status: **done**.
 
 ### A3. Panel sync / swap  {#task-r-ops-03}
 - **Keys:** `=` set inactive panel path = active, `Ctrl+U` swap panels.
-- **Feasibility:** ✅ native. Priority: **P2**. Status: proposed.
+- **Feasibility:** ✅ native. Priority: **P2**. Status: **done**.
 
 ---
 

@@ -1,61 +1,64 @@
 # Dev-Flow Active Context
 
 > **Last updated:** 2026-04-18
-> **Session:** Platform-constraint formalization + feature-roadmap capture.
+> **Session:** Area A (file operations) full pipeline — concept → spec → plan → code → live smoke test.
 
 ## Current Work Item
 
 | Field | Value |
 |-------|-------|
-| **Document** | C_PLT (Platform Constraints), SP_PLT, PL_RMP (Roadmap) |
-| **Pipeline phase** | `concept` + `spec` + `plan` (all freshly drafted) |
-| **Status** | `draft` — awaiting user review and commit approval |
-| **Traceable IDs** | C_PLT, SP_PLT, PL_RMP |
+| **Document** | C_OPS / SP_OPS / PL_OPS — file operations |
+| **Pipeline phase** | `implement` complete; `review` pending |
+| **Status** | `review-pending` (smoke-tested; awaiting clean-context review + commit approval) |
+| **Traceable IDs** | C_OPS, SP_OPS, PL_OPS |
 
 ## Current Task
 
-Captured the IoT / BusyBox / plain-Lua platform target as a first-class architectural constraint (concept + spec), filed the brainstormed feature backlog as a roadmap filtered against that constraint, and strengthened the architecture rules with two new `must` entries (`busybox_flag_subset`, `memory_and_fork_budgets`).
+Delivered Area A from [PL_RMP](../docs/roadmap.plan.md): copy / move / delete / mkdir (F5..F8), multi-select (Insert, `*`), and panel sync / swap (`=`, Ctrl+U). Two new Layer-1 modules (`lfm_prompt`, `lfm_ops`), one extension to the key decoder in `lfm_sys`, and wiring in `lfm.lua`.
 
 ## Progress State
 
-- [x] Platform-constraint concept: [platform_constraints.concept.md](../docs/platform_constraints.concept.md) — `C_PLT` (scope, forbidden deps, BusyBox vs GNU divergences, compatibility-probe policy).
-- [x] Platform-constraint spec: [platform_constraints.sp.md](../docs/platform_constraints.sp.md) — `SP_PLT` (baseline runtime, allowed applet/flag catalog, probe contract, memory/fork budgets).
-- [x] Feature roadmap: [roadmap.plan.md](../docs/roadmap.plan.md) — `PL_RMP` (29 backlog items across 8 areas, each with IoT-feasibility rating and priority).
-- [x] Rules: [architecture.md](./rules/architecture.md) — reworded `no_external_deps` to reference `C_PLT`; added `busybox_flag_subset` and `memory_and_fork_budgets` (both `must`).
-- [x] Rules index: [_index.yaml](./rules/_index.yaml) — new rule entries.
-- [x] Docs index: [_index.md](../docs/_index.md) — cross-cutting section added with pointer to `C_PLT`.
-- [ ] **Next:** user review of the three new docs and the rules diff; on approval, commit with message referencing `[C_PLT]` / `[SP_PLT]` / `[PL_RMP]`.
+- [x] Concept: [C_OPS](../docs/file_operations.concept.md).
+- [x] Spec: [SP_OPS](../docs/file_operations.sp.md).
+- [x] Plan: [PL_OPS](../docs/file_operations.plan.md) — 8 phases, all done.
+- [x] `lfm_prompt.lua` — modal text / confirm / error overlay on hints row.
+- [x] `lfm_ops.lua` — `copy`, `move`, `remove`, `mkdir` via `cp -r -f` / `mv -f` / `rm -rf` / `mkdir -p`.
+- [x] `lfm_sys.get_key` extended — F5-F8, Insert, Delete, Ctrl+U.
+- [x] `lfm.lua` — `Panel.selected` set, footer counter, yellow rendering, new dispatch arms, hints bar, selection-preserving refresh.
+- [x] Roadmap items R-OPS-01/02/03 marked done.
+- [x] Docs index + this file updated.
+- [x] Live smoke test in `/tmp/lfm_ops_test` via agent-tui: F7 mkdir, Insert multi-select, F8 delete (`[3/3,2]` → `[3/3]` after op), F5 copy into subdir, F6 rename, `=` sync, Ctrl+U swap, Esc cancel, `*` invert, error banner on invalid path, F10 clean exit.
+- [ ] **Next:** clean-context pre-commit review, then commit message `feat: Area A — file ops + multi-select + panel sync/swap [C_OPS][SP_OPS][PL_OPS]`.
 
 ## Blocking Issues
 
-None. All content is additive — no existing docs were invalidated. `no_external_deps` was narrowed (GNU → BusyBox-compatible) but the intent is unchanged, so existing code continues to conform.
+None.
 
 ## Relevant Context
 
 | Type | Name / Path | Note |
 |------|-------------|------|
-| Concept | [C_PLT](../docs/platform_constraints.concept.md) | New — project-wide architectural constraint |
-| Spec | [SP_PLT](../docs/platform_constraints.sp.md) | New — allowed applet catalog, probe protocol, budgets |
-| Plan | [PL_RMP](../docs/roadmap.plan.md) | New — feature roadmap keyed to IoT feasibility |
-| Rule | [architecture.busybox_flag_subset] | New `must` — tracks BusyBox flag compatibility |
-| Rule | [architecture.memory_and_fork_budgets] | New `must` — codifies 0-forks-per-keystroke, ring-buffer caps |
-
-## Recommended follow-ups (next phases)
-
-1. Promote `R-PLAT-01` (capability probe module) via `/dev-flow concept lfm_platform` — it unblocks `R-PLAT-02` and future probe-dependent features.
-2. Promote `R-OPS-02` + `R-OPS-01` (multi-select + file ops) — biggest UX gap vs. MC.
-3. Address `R-PERF-07` (per-keystroke `stty` toggling) — cheap IoT win.
+| Concept | [C_OPS](../docs/file_operations.concept.md) | status: active |
+| Spec | [SP_OPS](../docs/file_operations.sp.md) | status: active |
+| Plan | [PL_OPS](../docs/file_operations.plan.md) | status: completed |
+| Module (new) | [lfm_prompt.lua](../lfm_prompt.lua) | Reusable for future NAV-01 / NAV-05 / CFG-01 |
+| Module (new) | [lfm_ops.lua](../lfm_ops.lua) | Shell-out wrappers |
+| Modified | [lfm_sys.lua](../lfm_sys.lua) | get_key: F5-F8, Insert, Delete, Ctrl+U |
+| Modified | [lfm.lua](../lfm.lua) | Panel.selected, rendering, dispatch, hints |
 
 ## Recent Changes
 
 | File | Change |
 |------|--------|
-| [docs/platform_constraints.concept.md](../docs/platform_constraints.concept.md) | New — C_PLT concept. |
-| [docs/platform_constraints.sp.md](../docs/platform_constraints.sp.md) | New — SP_PLT specification. |
-| [docs/roadmap.plan.md](../docs/roadmap.plan.md) | New — PL_RMP roadmap. |
-| [docs/_index.md](../docs/_index.md) | Added cross-cutting section pointing to C_PLT / PL_RMP. |
-| [.dev_flow/rules/architecture.md](./rules/architecture.md) | Reworded `no_external_deps`; added `busybox_flag_subset`, `memory_and_fork_budgets`. |
-| [.dev_flow/rules/_index.yaml](./rules/_index.yaml) | Two new rule entries. |
+| [docs/file_operations.concept.md](../docs/file_operations.concept.md) | New — C_OPS. |
+| [docs/file_operations.sp.md](../docs/file_operations.sp.md) | New — SP_OPS. |
+| [docs/file_operations.plan.md](../docs/file_operations.plan.md) | New — PL_OPS (completed). |
+| [docs/_index.md](../docs/_index.md) | Area A row + new modules listed in Layer 1. |
+| [docs/roadmap.plan.md](../docs/roadmap.plan.md) | R-OPS-01/02/03 → status done. |
+| [lfm_prompt.lua](../lfm_prompt.lua) | New module (~180 LOC): prompt_text / confirm / show_error. |
+| [lfm_ops.lua](../lfm_ops.lua) | New module (~70 LOC): copy/move/remove/mkdir. |
+| [lfm_sys.lua](../lfm_sys.lua) | get_key: added F5-F8, Insert (`[2~`), Delete (`[3~`), Ctrl+U (`\21`). |
+| [lfm.lua](../lfm.lua) | New dispatch arms; Panel.selected; position_marker with count; yellow render for marked items; selection-preserving refresh; expanded hints bar. |
 
 ---
 

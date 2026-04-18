@@ -10,6 +10,7 @@ All docs were produced by the [onboard procedure](../.dev_flow/onboard/) from th
 |----------|---------|------|------|
 | **Platform constraints** — IoT/BusyBox/plain-Lua target | [C_PLT](./platform_constraints.concept.md) | [SP_PLT](./platform_constraints.sp.md) | — |
 | **Feature roadmap** — backlog of candidate features with IoT feasibility | — | — | [PL_RMP](./roadmap.plan.md) |
+| **File operations** — Area A: copy/move/delete/mkdir, multi-select, panel sync | [C_OPS](./file_operations.concept.md) | [SP_OPS](./file_operations.sp.md) | [PL_OPS](./file_operations.plan.md) |
 
 > **Read [C_PLT](./platform_constraints.concept.md) before designing any new feature** — it bounds what's acceptable (no LuaRocks, no FFI, BusyBox-compatible shell flags only).
 
@@ -29,6 +30,8 @@ All docs were produced by the [onboard procedure](../.dev_flow/onboard/) from th
 |--------|---------|------|------|
 | `lfm_files` — directory listing, permissions | [C_FIL](./lfm_files.concept.md) | [SP_FIL](./lfm_files.sp.md) | [PL_FIL](./lfm_files.plan.md) |
 | `lfm_terminal` — embedded shell widget | [C_TRM](./lfm_terminal.concept.md) | [SP_TRM](./lfm_terminal.sp.md) | [PL_TRM](./lfm_terminal.plan.md) |
+| `lfm_prompt` — modal input / confirm / error overlay | (see [C_OPS](./file_operations.concept.md)) | (see [SP_OPS](./file_operations.sp.md)) | (see [PL_OPS](./file_operations.plan.md)) |
+| `lfm_ops` — cp / mv / rm / mkdir shell wrappers | (see [C_OPS](./file_operations.concept.md)) | (see [SP_OPS](./file_operations.sp.md)) | (see [PL_OPS](./file_operations.plan.md)) |
 
 ### Layer 2
 

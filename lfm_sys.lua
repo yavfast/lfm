@@ -90,7 +90,7 @@ function M.get_key()
         if not next1 then
             return "escape" -- Pure ESC key
         end
-        
+
         if next1 == "[" then
             local next2 = io.read(1)
             if next2 == "A" then
@@ -134,15 +134,27 @@ function M.get_key()
                             return "ctrl_shift_down"
                         end
                     end
+                elseif next3 == "5" then -- F5 = \27[15~
+                    if io.read(1) == "~" then return "copy" end
+                elseif next3 == "7" then -- F6 = \27[17~
+                    if io.read(1) == "~" then return "move" end
+                elseif next3 == "8" then -- F7 = \27[18~
+                    if io.read(1) == "~" then return "mkdir" end
+                elseif next3 == "9" then -- F8 = \27[19~
+                    if io.read(1) == "~" then return "delete_key" end
                 end
-            elseif next2 == "2" then -- F10
+            elseif next2 == "2" then -- F10 (\27[21~) or Insert (\27[2~)
                 local next3 = io.read(1)
-                if next3 == "1" then
+                if next3 == "~" then
+                    return "insert"
+                elseif next3 == "1" then
                     local next4 = io.read(1)
                     if next4 == "~" then
                         return "quit"
                     end
                 end
+            elseif next2 == "3" then -- Delete key = \27[3~
+                if io.read(1) == "~" then return "delete_key" end
             end
         elseif next1 == "O" then -- F3, F4
             local next2 = io.read(1)
@@ -157,6 +169,8 @@ function M.get_key()
         return "enter"
     elseif key == "\18" then -- Ctrl+R (ASCII 18)
         return "refresh"
+    elseif key == "\21" then -- Ctrl+U (ASCII 21) — swap panels
+        return "swap_panels"
     elseif key == "\t" then -- Handle Tab key
         return "tab"
     else

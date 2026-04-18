@@ -15,6 +15,8 @@ local lfm_scr = require("lfm_scr")
 local lfm_view = require("lfm_view")
 local lfm_str = require("lfm_str")
 local lfm_terminal = require("lfm_terminal")
+local lfm_prompt = require("lfm_prompt")
+local lfm_ops = require("lfm_ops")
 
 -- Screen layout configuration
 local screen_layout = {
@@ -24,22 +26,23 @@ local screen_layout = {
     terminal_start_row = 0       -- Will be calculated
 }
 
--- Panel data structure
-local panel_info = {
-    current_dir = ".",
-    absolute_path = lfm_files.get_absolute_path("."),
-    selected_item = 1,
-    scroll_offset = 0,
-    items = {},
-    view_width = 0,
-    view_height = 0
-}
+-- Panel data structure. `selected` is a set keyed by item name — see [SP_OPS_01_01].
+local function new_panel()
+    return {
+        current_dir = ".",
+        absolute_path = lfm_files.get_absolute_path("."),
+        selected_item = 1,
+        scroll_offset = 0,
+        items = {},
+        view_width = 0,
+        view_height = 0,
+        selected = {},
+    }
+end
 
 -- Two panels
-local panel1 = {}
-for k, v in pairs(panel_info) do panel1[k] = v end
-local panel2 = {}
-for k, v in pairs(panel_info) do panel2[k] = v end
+local panel1 = new_panel()
+local panel2 = new_panel()
 
 local screen_info = {
     view_height = 0,
@@ -47,6 +50,14 @@ local screen_info = {
 }
 
 local active_panel = 1 -- 1 for panel1, 2 for panel2
+
+-- Count entries in a set (used for panel.selected).
+local function count_set(t)
+    if not t then return 0 end
+    local n = 0
+    for _ in pairs(t) do n = n + 1 end
+    return n
+end
 
 local function sort_items(items)
     table.sort(items, function(a, b)
@@ -81,15 +92,24 @@ local function draw_hints()
     lfm_scr.move_cursor(hint_row, 1)
     lfm_scr.draw_text_colored("gray", string.rep("-", screen_info.view_width))
     lfm_scr.move_cursor(hint_row + 1, 1)
-    lfm_scr.draw_text_colored("gray", " F3: View | F4: Edit | Ctrl+R: Refresh | Tab: Switch Panel | F10: Quit")
+    lfm_scr.draw_text_colored("gray", " F3:View F4:Edit F5:Copy F6:Move F7:Mkdir F8:Del Ins:Mark *:Inv =:Sync ^U:Swap Tab:Switch F10:Quit")
+end
+
+-- Build a position-marker string with optional selection count — [SP_OPS_04_02].
+local function position_marker(panel)
+    local sel = count_set(panel.selected)
+    if sel > 0 then
+        return string.format("[%d/%d,%d]", panel.selected_item - 1, #panel.items - 1, sel)
+    end
+    return string.format("[%d/%d]", panel.selected_item - 1, #panel.items - 1)
 end
 
 -- Function to draw the footer section (position info and hints)
 local function draw_footer(panel1_info, panel2_info)
     -- Display hint with position info at the end of main area
     lfm_scr.move_cursor(screen_layout.main_height, 1)
-    local position_info1 = string.format("[%d/%d]", panel1_info.selected_item - 1, #panel1_info.items - 1)
-    local position_info2 = string.format("[%d/%d]", panel2_info.selected_item - 1, #panel2_info.items - 1)
+    local position_info1 = position_marker(panel1_info)
+    local position_info2 = position_marker(panel2_info)
 
     -- Draw left vertical separator
     lfm_scr.draw_text_colored("white", "|")
@@ -184,16 +204,19 @@ local function draw_panel_row(panel, row_index, start_col, is_active, panel_view
         -- Check if we have read permissions
         local has_read = lfm_files.check_permissions(item.permissions, "read")
         local is_executable = lfm_files.check_permissions(item.permissions, "execute")
+        -- [SP_OPS_04_01] Multi-selected items render in yellow regardless of type.
+        local is_marked = panel.selected and panel.selected[item.name]
 
         if not has_read then
             lfm_scr.draw_text_colored("red", " ")
         elseif item.is_dir then
-            lfm_scr.draw_text_colored("bright_white", "/")
+            lfm_scr.draw_text_colored(is_marked and "bright_yellow" or "bright_white", "/")
         elseif is_executable then
-            lfm_scr.draw_text_colored("green", "*")
+            lfm_scr.draw_text_colored(is_marked and "bright_yellow" or "green", "*")
         else
-            lfm_scr.draw_text_colored("white", " ")
+            lfm_scr.draw_text_colored(is_marked and "bright_yellow" or "white", " ")
         end
+        if is_marked then lfm_scr.set_color("bright_yellow") end
 
         -- Convert timestamp to readable date
         local date_str = ""
@@ -346,6 +369,8 @@ local function open_dir(panel, target_path, prev_dir)
         panel.selected_item = 1
     end
     panel.scroll_offset = 0
+    -- [SP_OPS_01_01] Selection is per-directory; clear on navigation.
+    panel.selected = {}
 end
 
 -- Function to handle Enter key press
@@ -361,10 +386,72 @@ local function handle_enter_key(current_panel)
     end
 end
 
+-- Layout of the overlay prompt row — [C_OPS_03_02].
+local function prompt_layout()
+    return {
+        row = screen_layout.terminal_start_row + screen_layout.terminal_height + 1,
+        col = 1,
+        cols = screen_info.view_width,
+    }
+end
+
+-- [SP_OPS_06] Reduce panel state to the list of absolute paths we should act
+-- on. Multi-selection wins; otherwise the cursor item. `..` is never included.
+local function resolve_targets(panel)
+    local out = {}
+    if panel.selected then
+        for name, _ in pairs(panel.selected) do
+            if name ~= ".." then
+                for _, it in ipairs(panel.items) do
+                    if it.name == name then
+                        out[#out + 1] = it.path
+                        break
+                    end
+                end
+            end
+        end
+    end
+    if #out == 0 then
+        local it = panel.items[panel.selected_item]
+        if it and it.name ~= ".." then out[#out + 1] = it.path end
+    end
+    return out
+end
+
+-- Refresh both panels in place, preserving cursor-by-name AND selection sets —
+-- [SP_OPS_01_01] says selection survives a Ctrl+R on the same directory.
+local function refresh_panels()
+    local sel1, sel2 = panel1.selected or {}, panel2.selected or {}
+    local cur1 = panel1.items[panel1.selected_item]
+    local cur2 = panel2.items[panel2.selected_item]
+    open_dir(panel1, panel1.current_dir, cur1 and cur1.name or nil)
+    open_dir(panel2, panel2.current_dir, cur2 and cur2.name or nil)
+    -- Restore only names that still exist after the op.
+    local function restore(p, prev)
+        for _, it in ipairs(p.items) do
+            if prev[it.name] and it.name ~= ".." then p.selected[it.name] = true end
+        end
+    end
+    restore(panel1, sel1)
+    restore(panel2, sel2)
+end
+
+local function inactive()
+    return (active_panel == 1) and panel2 or panel1
+end
+
+-- Wrap any op that displays modal UI: ensures the full frame is repainted
+-- afterwards and that a failure surfaces as an on-screen error.
+local function after_op(result)
+    if not result.ok and result.error_line then
+        lfm_prompt.show_error(result.error_line, prompt_layout())
+    end
+end
+
 -- Function to handle navigation and file operations
 local function handle_navigation_key(key)
     local current_panel = (active_panel == 1) and panel1 or panel2
-    
+
     if key == "up" or key == "down" then
         if key == "up" then
             current_panel.selected_item = math.max(1, current_panel.selected_item - 1)
@@ -412,14 +499,80 @@ local function handle_navigation_key(key)
         end
         return true
     elseif key == "refresh" then -- Ctrl+R
-        -- [C_LFM_03_02] Guard against empty / out-of-range selection after external changes.
-        local sel1 = panel1.items[panel1.selected_item]
-        local sel2 = panel2.items[panel2.selected_item]
-        open_dir(panel1, panel1.current_dir, sel1 and sel1.name or nil)
-        open_dir(panel2, panel2.current_dir, sel2 and sel2.name or nil)
+        refresh_panels()
+        return true
+    elseif key == "insert" then -- [SP_OPS_03_01] toggle multi-select + advance
+        local it = current_panel.items[current_panel.selected_item]
+        if it and it.name ~= ".." then
+            current_panel.selected[it.name] = (not current_panel.selected[it.name]) or nil
+            current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + 1)
+        end
+        return true
+    elseif key == "*" then -- [SP_OPS_03_02] invert selection on active panel
+        for _, it in ipairs(current_panel.items) do
+            if it.name ~= ".." then
+                current_panel.selected[it.name] = (not current_panel.selected[it.name]) or nil
+            end
+        end
+        return true
+    elseif key == "=" then -- [SP_OPS_03_02] sync inactive panel to active's path
+        open_dir(inactive(), current_panel.current_dir)
+        return true
+    elseif key == "swap_panels" then -- [SP_OPS_03_01] Ctrl+U swap
+        local p1, p2 = panel1, panel2
+        for k, v in pairs(p2) do local t = p1[k]; p1[k] = v; p2[k] = t end
+        -- Keep the active side visually active — flip index to follow the data.
+        active_panel = active_panel == 1 and 2 or 1
+        return true
+    elseif key == "copy" then -- F5
+        local targets = resolve_targets(current_panel)
+        if #targets == 0 then return true end
+        local default = inactive().absolute_path
+        local dest = lfm_prompt.prompt_text("Copy to:", default, prompt_layout())
+        if dest and dest ~= "" then
+            after_op(lfm_ops.copy(targets, dest))
+            current_panel.selected = {}
+            refresh_panels()
+        end
+        return true
+    elseif key == "move" then -- F6
+        local targets = resolve_targets(current_panel)
+        if #targets == 0 then return true end
+        local default = inactive().absolute_path
+        local dest = lfm_prompt.prompt_text("Move to:", default, prompt_layout())
+        if dest and dest ~= "" then
+            after_op(lfm_ops.move(targets, dest))
+            current_panel.selected = {}
+            refresh_panels()
+        end
+        return true
+    elseif key == "mkdir" then -- F7
+        local name = lfm_prompt.prompt_text("New directory:", "", prompt_layout())
+        if name and name ~= "" then
+            local full
+            if name:sub(1, 1) == "/" then
+                full = name
+            else
+                local base = current_panel.absolute_path
+                if base:sub(-1) ~= "/" then base = base .. "/" end
+                full = base .. name
+            end
+            after_op(lfm_ops.mkdir(full))
+            refresh_panels()
+        end
+        return true
+    elseif key == "delete_key" then -- F8 / Delete
+        local targets = resolve_targets(current_panel)
+        if #targets == 0 then return true end
+        local label = string.format("Delete %d item(s)? [y/N]", #targets)
+        if lfm_prompt.confirm(label, prompt_layout()) then
+            after_op(lfm_ops.remove(targets))
+            current_panel.selected = {}
+            refresh_panels()
+        end
         return true
     end
-    
+
     return false
 end
 
