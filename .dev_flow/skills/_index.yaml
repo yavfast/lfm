@@ -1,0 +1,9 @@
+domains:
+  - name: terminal-ui
+    path: terminal-ui/
+    topics: [ansi, vt100, raw-mode, tty, stty, alt-buffer, keybindings]
+    summary: ANSI escape sequences, raw tty management, and key decoding techniques used throughout lfm_scr and lfm_sys.
+  - name: unicode
+    path: unicode/
+    topics: [utf8, east-asian-width, column-alignment, truncation]
+    summary: UTF-8 byte-level decoding and display-cell width computation as implemented in lfm_str.

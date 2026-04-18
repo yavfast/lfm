@@ -2,6 +2,7 @@
 -- Terminal emulator functionality for LFM
 
 local lfm_scr = require("lfm_scr")
+local lfm_str = require("lfm_str")
 local M = {}
 
 -- Terminal state
@@ -32,16 +33,13 @@ function M.draw_terminal(start_row, width, height)
     -- Draw output area
     for i = 1, terminal_state.content_height do
         lfm_scr.move_cursor(start_row + i - 1, 1)
-        
+
         -- Calculate which line to display based on view offset
         local line_idx = i + terminal_state.view_offset
         if line_idx <= #output_lines then
-            local line = output_lines[line_idx]
-            if #line > width then
-                line = line:sub(1, width - 3) .. "..."
-            end
-            lfm_scr.draw_text_colored("bright_white", line)
-            lfm_scr.draw_text(string.rep(" ", width - #line))
+            -- [style.unicode_via_lfm_str] pad_string handles both truncation and right-padding.
+            lfm_scr.draw_text_colored("bright_white",
+                lfm_str.pad_string(output_lines[line_idx], width, true))
         else
             lfm_scr.draw_text(string.rep(" ", width))
         end

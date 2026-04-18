@@ -1,0 +1,4 @@
+skills:
+  - id: utf8-width-computation
+    file: utf8-width-computation.md
+    summary: "Byte-level UTF-8 decoding + East Asian wide-character detection used by lfm_str.get_string_width."

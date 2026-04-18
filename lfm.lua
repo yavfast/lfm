@@ -18,7 +18,7 @@ local lfm_terminal = require("lfm_terminal")
 
 -- Screen layout configuration
 local screen_layout = {
-    terminal_height_percent = 30, -- Terminal takes 20% of screen height
+    terminal_height_percent = 30, -- Terminal takes 30% of screen height
     main_height = 0,             -- Will be calculated
     terminal_height = 0,         -- Will be calculated
     terminal_start_row = 0       -- Will be calculated
@@ -314,7 +314,7 @@ local function edit_file(path)
     lfm_scr.clear_screen()
     
     -- Launch vi editor
-    os.execute("vi " .. path)
+    os.execute("vi " .. lfm_sys.shell_quote(path))
     
     -- Force redraw of the interface
     lfm_scr.clear_screen()
@@ -412,11 +412,11 @@ local function handle_navigation_key(key)
         end
         return true
     elseif key == "refresh" then -- Ctrl+R
-        -- Refresh both panels
-        local prev_dir1 = panel1.items[panel1.selected_item].name
-        local prev_dir2 = panel2.items[panel2.selected_item].name
-        open_dir(panel1, panel1.current_dir, prev_dir1)
-        open_dir(panel2, panel2.current_dir, prev_dir2)
+        -- [C_LFM_03_02] Guard against empty / out-of-range selection after external changes.
+        local sel1 = panel1.items[panel1.selected_item]
+        local sel2 = panel2.items[panel2.selected_item]
+        open_dir(panel1, panel1.current_dir, sel1 and sel1.name or nil)
+        open_dir(panel2, panel2.current_dir, sel2 and sel2.name or nil)
         return true
     end
     
@@ -466,5 +466,12 @@ local function main()
     lfm_sys.restore_terminal()
 end
 
--- Run program
-main()
+-- [C_LFM_03_02] Run program with a safety net: any unhandled error must not leave
+-- the tty in raw mode or the alt-screen buffer active.
+local ok, err = xpcall(main, debug.traceback)
+if not ok then
+    lfm_scr.exit_fullscreen()
+    lfm_sys.restore_terminal()
+    io.stderr:write("lfm: fatal error\n" .. tostring(err) .. "\n")
+    os.exit(1)
+end

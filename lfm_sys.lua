@@ -1,5 +1,14 @@
 local M = {}
 
+-- Quote a value for POSIX shell using single-quote wrapping. Safe for any byte
+-- sequence (including spaces, quotes, $, backticks, newlines) — the only
+-- special case inside single quotes is the single quote itself, closed and
+-- re-opened as '\''.
+function M.shell_quote(s)
+    if s == nil then return "''" end
+    return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
 -- Execute a system command with LANG=C and return its output as string
 function M.exec_command_output(command)
     local handle = io.popen('LANG=C ' .. command)

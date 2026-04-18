@@ -11,8 +11,8 @@ function M.get_absolute_path(path)
     if absolute_path then
         return absolute_path
     end
-    local output = lfm_sys.exec_command_output('realpath "' .. path .. '" 2>/dev/null')
-    if output then
+    local output = lfm_sys.exec_command_output("realpath -- " .. lfm_sys.shell_quote(path) .. " 2>/dev/null")
+    if output and output ~= "" then
         absolute_path = output:gsub("\n", "")
         abs_path_cache[path] = absolute_path
         return absolute_path
@@ -45,89 +45,93 @@ function M.get_directory_items(path)
         end
     end
 
-    local handle = io.popen('LANG=C stat -c "%F|%n|%s|%Y|%A|%N" "' .. path .. '"/* "' .. path .. '"/.* 2>/dev/null')
-    if handle then
-        for line in handle:lines() do
-            local file_type, name, size, timestamp, permissions, link_info = line:match("([^|]+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)|([^|]+)")
-            if name then
-                -- Extract only filename without path
-                local filename = name:match("([^/]+)$")
-                local is_dir = file_type:match("directory")
-                local is_link = not is_dir and file_type:match("symbolic link")
-                local link_target
+    -- NUL-separated fields so any byte (|, \n, spaces, etc.) in filenames is preserved.
+    local quoted_path = lfm_sys.shell_quote(path)
+    local cmd = "stat --printf='%F\\0%n\\0%s\\0%Y\\0%A\\0%N\\0' "
+        .. quoted_path .. "/* " .. quoted_path .. "/.* 2>/dev/null"
+    local output = lfm_sys.exec_command_output(cmd)
+    if not output then return items end
 
-                if filename ~= "." and filename ~= ".." then
-                    if is_link then
-                        -- Extract link target from the link_info
+    local fields = {}
+    for field in output:gmatch("([^%z]*)%z") do
+        fields[#fields + 1] = field
+    end
+
+    for i = 1, #fields - 5, 6 do
+        local file_type   = fields[i]
+        local name        = fields[i + 1]
+        local size        = fields[i + 2]
+        local timestamp   = fields[i + 3]
+        local permissions = fields[i + 4]
+        local link_info   = fields[i + 5]
+
+        if name and name ~= "" then
+            local filename = name:match("([^/]+)$") or name
+            local is_dir = file_type:match("directory") ~= nil
+            local is_link = not is_dir and file_type:match("symbolic link") ~= nil
+            local link_target
+
+            if filename ~= "." and filename ~= ".." then
+                if is_link then
+                    -- Prefer readlink for robust target extraction; fall back to %N parse.
+                    local item_full_path = (path == "/") and (path .. filename) or (path .. "/" .. filename)
+                    local target_out = lfm_sys.exec_command_output(
+                        "readlink -- " .. lfm_sys.shell_quote(item_full_path) .. " 2>/dev/null")
+                    if target_out and target_out ~= "" then
+                        link_target = target_out:gsub("\n$", "")
+                    else
                         link_target = link_info:match("'[^']+'%s*->%s*'([^']+)'")
-                        if link_target then
-                            -- Handle different link_target formats
-                            if not link_target:match("^/") then
-                                -- If it's a relative path, add current path
-                                if path == "/" then
-                                    link_target = path .. link_target
-                                else
-                                    link_target = path .. "/" .. link_target
-                                end
-                            end
-
-                            -- Get absolute path of the link target
-                            link_target = M.get_absolute_path(link_target)
-                            -- Check if target is a directory
-                            local target_handle = io.popen('LANG=C stat -c "%F" "' .. link_target .. '" 2>/dev/null')
-                            if target_handle then
-                                local target_type = target_handle:read("*a"):gsub("\n", "")
-                                target_handle:close()
-                                is_dir = target_type:match("directory")
-                            end
+                    end
+                    if link_target then
+                        if not link_target:match("^/") then
+                            link_target = (path == "/") and (path .. link_target) or (path .. "/" .. link_target)
+                        end
+                        link_target = M.get_absolute_path(link_target)
+                        local target_type = lfm_sys.exec_command_output(
+                            "stat -c '%F' -- " .. lfm_sys.shell_quote(link_target) .. " 2>/dev/null")
+                        if target_type then
+                            is_dir = target_type:match("directory") ~= nil
                         end
                     end
-
-                    -- Form path with root directory
-                    local item_path
-                    if path == "/" then
-                        item_path = path .. filename
-                    else
-                        item_path = path .. "/" .. filename
-                    end
-
-                    -- Convert size to number, use 0 for directories
-                    local size_num = is_dir and 0 or tonumber(size) or 0
-
-                    table.insert(items, {
-                        name = filename,
-                        path = item_path,
-                        is_dir = is_dir,
-                        is_link = is_link,
-                        link_target = link_target,
-                        permissions = permissions,
-                        size = size_num,  -- Store as number
-                        modified = timestamp
-                    })
                 end
+
+                local item_path
+                if path == "/" then
+                    item_path = path .. filename
+                else
+                    item_path = path .. "/" .. filename
+                end
+
+                local size_num = is_dir and 0 or tonumber(size) or 0
+
+                table.insert(items, {
+                    name = filename,
+                    path = item_path,
+                    is_dir = is_dir,
+                    is_link = is_link,
+                    link_target = link_target,
+                    permissions = permissions,
+                    size = size_num,
+                    modified = timestamp
+                })
             end
         end
-        handle:close()
     end
 
     return items
 end
 
+-- [SP_FIL_02_04] Consults the owner triplet (positions 2-4 of the mode string):
+-- position 2 = read, 3 = write, 4 = execute.
 function M.check_permissions(permissions, action)
-    if not permissions then return false end
-
-    local user_perms = {
-        read = permissions:sub(2, 4),
-        write = permissions:sub(5, 7),
-        execute = permissions:sub(8, 10)
-    }
-
+    if not permissions or #permissions < 4 then return false end
+    local owner = permissions:sub(2, 4)
     if action == "read" then
-        return user_perms.read:match("r")
+        return owner:sub(1, 1) == "r"
     elseif action == "write" then
-        return user_perms.write:match("w")
+        return owner:sub(2, 2) == "w"
     elseif action == "execute" then
-        return user_perms.execute:match("x")
+        return owner:sub(3, 3) == "x"
     end
     return false
 end

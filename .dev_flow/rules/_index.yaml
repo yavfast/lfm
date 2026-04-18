@@ -1,0 +1,53 @@
+rules:
+  - id: naming.module_prefix
+    category: naming
+    severity: should
+    summary: "Module files use lfm_<subsystem>.lua snake_case naming."
+  - id: naming.snake_case_functions
+    category: naming
+    severity: should
+    summary: "Public functions use snake_case."
+  - id: structure.module_return_table
+    category: structure
+    severity: must
+    summary: "Every module declares `local M = {}` and returns `M` at the end."
+  - id: structure.require_local
+    category: structure
+    severity: must
+    summary: "Use `local <name> = require(\"<module>\")` at the top of each file."
+  - id: architecture.layer_direction
+    category: architecture
+    severity: must
+    summary: "Dependencies point inward: UI -> viewer/terminal -> files -> sys/scr/str. No upward requires."
+  - id: architecture.no_external_deps
+    category: architecture
+    severity: must
+    summary: "Zero external Lua libraries — only stdlib + Unix shell tools via io.popen/os.execute."
+  - id: architecture.shell_lang_c
+    category: architecture
+    severity: should
+    summary: "Always prefix shell invocations with LANG=C for locale-stable parsing."
+  - id: error_handling.nil_guard_popen
+    category: error-handling
+    severity: must
+    summary: "After io.popen, check handle for nil before calling :read/:lines/:close."
+  - id: error_handling.safe_defaults
+    category: error-handling
+    severity: should
+    summary: "Return typed fallback values (24,80 size / RAM N/A / empty items) on shell failure — do not throw."
+  - id: error_handling.tty_restore
+    category: error-handling
+    severity: must
+    summary: "Any code path that enters raw mode must pair it with restore_terminal before exit, even when invoking external programs."
+  - id: style.ansi_via_lfm_scr
+    category: style
+    severity: must
+    summary: "Never write raw ANSI escapes outside lfm_scr — always go through its helpers."
+  - id: style.flush_at_frame_end
+    category: style
+    severity: should
+    summary: "Call io.flush() once per rendered frame; do not flush mid-draw."
+  - id: style.unicode_via_lfm_str
+    category: style
+    severity: should
+    summary: "Compute display widths with lfm_str.get_string_width; never use #s for column alignment."

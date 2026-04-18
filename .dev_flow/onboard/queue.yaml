@@ -1,0 +1,30 @@
+layers:
+  - layer: 0
+    modules:
+      - name: lfm_sys
+        path: lfm_sys.lua
+        status: pending
+      - name: lfm_scr
+        path: lfm_scr.lua
+        status: pending
+      - name: lfm_str
+        path: lfm_str.lua
+        status: pending
+  - layer: 1
+    modules:
+      - name: lfm_files
+        path: lfm_files.lua
+        status: pending
+      - name: lfm_terminal
+        path: lfm_terminal.lua
+        status: pending
+  - layer: 2
+    modules:
+      - name: lfm_view
+        path: lfm_view.lua
+        status: pending
+  - layer: 3
+    modules:
+      - name: lfm
+        path: lfm.lua
+        status: pending

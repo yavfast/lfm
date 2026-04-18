@@ -4,6 +4,7 @@
 local lfm_files = require("lfm_files")
 local lfm_scr = require("lfm_scr")
 local lfm_sys = require("lfm_sys")
+local lfm_str = require("lfm_str")
 
 local M = {}
 
@@ -59,10 +60,8 @@ M.view_file = function(path, view_width, view_height)
                     if current_col > 0 then
                         line = line:sub(current_col + 1)
                     end
-                    if #line > view_width then
-                        line = line:sub(1, view_width - 3) .. "..."
-                    end
-                    lfm_scr.draw_text_colored("white", line)
+                    -- [style.unicode_via_lfm_str] Use pad_string for width-accurate truncation.
+                    lfm_scr.draw_text_colored("white", lfm_str.pad_string(line, view_width, true))
                 end
             end
         end

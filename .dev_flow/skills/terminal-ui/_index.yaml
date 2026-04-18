@@ -1,0 +1,10 @@
+skills:
+  - id: ansi-escape-conventions
+    file: ansi-escape-conventions.md
+    summary: "ANSI escape sequences used by lfm_scr for cursor, colors, and alt-screen buffers."
+  - id: raw-mode-lifecycle
+    file: raw-mode-lifecycle.md
+    summary: "Pairing stty raw/-raw around external programs; why tty restoration is mandatory."
+  - id: key-decoding
+    file: key-decoding.md
+    summary: "Decoding ANSI key escape sequences (arrows, function keys, modifiers) from blocking io.read."
