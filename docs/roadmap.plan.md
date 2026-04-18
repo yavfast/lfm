@@ -35,13 +35,13 @@ The single biggest gap between LFM and Midnight Commander. Without these, LFM is
 - **Feasibility:** ✅ native. Priority: **P0**. Status: **done** (see [PL_OPS](./file_operations.plan.md)).
 
 ### A2. Multi-select  {#task-r-ops-02}
-- **Keys:** `Insert` toggle, `*` invert. (`+` / `-` by glob mask deferred — backlog.)
+- **Keys:** `Insert` toggle. (`*` invert, `+` / `-` by glob mask — deferred.)
 - **Modules:** `Panel.selected` set keyed by name.
-- **Feasibility:** ✅ native. Priority: **P0**. Status: **done**.
+- **Feasibility:** ✅ native. Priority: **P0**. Status: **done** (with revision 2026-04-18 — `*` hotkey dropped; no printable-char hotkeys per IoT-terminal directive).
 
 ### A3. Panel sync / swap  {#task-r-ops-03}
-- **Keys:** `=` set inactive panel path = active, `Ctrl+U` swap panels.
-- **Feasibility:** ✅ native. Priority: **P2**. Status: **done**.
+- **Keys:** `Ctrl+U` swap panels; **sync** (inactive ← active's path) via F9 "Options" menu → `(3) Sync paths`.
+- **Feasibility:** ✅ native. Priority: **P2**. Status: **done** (revised 2026-04-18 — `=` hotkey replaced by the F9 menu item; avoids conflicts with terminal command input).
 
 ---
 
@@ -71,26 +71,31 @@ The single biggest gap between LFM and Midnight Commander. Without these, LFM is
 - **Keys:** `Ctrl+L` opens a path prompt pre-filled with the current path.
 - **Feasibility:** ✅ native. Priority: **P2**. Status: proposed.
 
+### B6. Alt+letter first-char jump (FAR-style)  {#task-r-nav-06}
+- **Keys:** `Alt+<letter>` jumps cursor to next item whose name starts with that letter (case-insensitive, skips `..` and dotfiles, wraps around).
+- **Modules:** `lfm_sys.get_key` Alt-letter decoder + dispatch arm in `lfm.lua`.
+- **Feasibility:** ✅ native. Priority: **P1**. Status: **done** (see [C_NAV](./quick_nav.concept.md) / [PL_NAV](./quick_nav.plan.md)).
+
 ---
 
 ## Area C — Display & Sorting
 
 ### C1. Sort modes (name / size / mtime / ext, asc/desc)  {#task-r-disp-01}
-- **Keys:** `Ctrl+F3` name, `Ctrl+F4` ext, `Ctrl+F5` date, `Ctrl+F6` size.
-- **Modules:** sorter in `lfm_files.lua`, sort-key field on `Panel`.
-- **Feasibility:** ✅ native (pure Lua sort). Priority: **P1**. Status: proposed.
+- **UX:** Reached through the unified F9 menu (Display Options → Sort sub-menu). Per-panel state.
+- **Modules:** sort comparator in `lfm.lua`; `sort_by`/`sort_desc` fields on `Panel`.
+- **Feasibility:** ✅ native. Priority: **P1**. Status: **done** (see [PL_DSP](./display_options.plan.md)).
 
 ### C2. Toggle hidden files  {#task-r-disp-02}
-- **Keys:** `Ctrl+H` show/hide dotfiles.
-- **Feasibility:** ✅ native (filter in `lfm_files.get_directory_items` or post-processing). Priority: **P1**. Status: proposed.
+- **UX:** F9 menu → "Hidden" entry. Per-panel `show_hidden` boolean; dotfiles filtered post-fetch in Lua.
+- **Feasibility:** ✅ native. Priority: **P1**. Status: **done**.
 
 ### C3. Filter by glob mask  {#task-r-disp-03}
-- **Keys:** `Ctrl+F` prompt for include/exclude pattern (`*.lua`, `!*.log`).
+- **UX:** Future F9 menu entry opening a pattern prompt (`*.lua`, `!*.log`).
+- **Modules:** new `panel.filter_pattern` + `lfm_str` glob matcher.
 - **Feasibility:** ✅ native. Priority: **P2**. Status: proposed.
 
 ### C4. Git status column (if `git` is available)  {#task-r-disp-04}
-- **Display:** per-file flag (`M`, `A`, `?`, `D`) from `git status --porcelain=v1 -z`.
-- **Feasibility:** 🟠 degraded — `git` is **not** a BusyBox applet. Must probe `command -v git` and silently skip when absent. NEVER surface as a hard dependency. Priority: **P2**. Status: proposed.
+- **Status: explicitly deferred** per user's IoT directive — target devices do not ship `git`, so this is out of scope. If a git-enabled deployment variant is ever considered, promote and add a `command -v git` probe per [SP_PLT_03](./platform_constraints.sp.md#SP_PLT_03). Priority: **P2**. Status: **deferred**.
 
 ---
 

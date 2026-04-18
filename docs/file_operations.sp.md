@@ -112,14 +112,14 @@ Returned by `lfm_prompt.confirm`:
 
 **Collision note:** Ctrl+U at `\21` is NOT currently mapped elsewhere; `lfm_terminal.handle_input` receives unrecognized printables, so prior behavior was "insert `\21` into command line" — which is a non-functional NAK byte. Replacing that edge case with a panel-level "swap panels" is acceptable.
 
-### 3.2. Printable-shortcut dispatch  {#SP_OPS_03_02}
+### 3.2. Printable-shortcut dispatch — DEPRECATED  {#SP_OPS_03_02}
 
-`*` and `=` remain unchanged in `get_key` (return the character itself). In `handle_navigation_key`, new arms:
+The `*` (invert selection) and `=` (sync paths) hotkeys have been **removed** to avoid collisions with terminal-widget input. Rationale: single printable chars that fall through `get_key` are ambiguous — pressing them with an empty terminal buffer activated the panel action, while with any pending command text they were inserted. This inconsistency surprised users and made `*`/`=` unusable as shell leading characters.
 
-- `key == "*"` → invert_select (if panel non-empty). Returns `true` → caller does NOT pass to terminal.
-- `key == "="` → sync_panels. Returns `true`.
+Replacements:
 
-These trigger ONLY when the terminal widget has no command text (existing dispatch chain rule in `lfm.lua`).
+- **`*` invert selection** — dropped entirely. Users can combine Insert-toggle with multi-character selection patterns manually. Low-frequency action; no replacement hotkey warranted.
+- **`=` sync paths** — relocated to the F9 "Options" menu → `(3) Sync paths` ([SP_DSP_03_02](./display_options.sp.md#SP_DSP_03_02)).
 
 ## 4. Selection Rendering  {#SP_OPS_04}
 
@@ -204,3 +204,4 @@ No change to the leading prefix glyph (`/`, `*`, ` `, ` `).
 | Date | Change |
 |------|--------|
 | 2026-04-18 | Initial draft derived from [C_OPS](./file_operations.concept.md). |
+| 2026-04-18 | Removed printable-char hotkeys: `*` (dropped), `=` (moved to F9 menu). SP_OPS_03_02 rewritten to reflect the deprecation. |

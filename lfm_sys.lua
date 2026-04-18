@@ -143,10 +143,12 @@ function M.get_key()
                 elseif next3 == "9" then -- F8 = \27[19~
                     if io.read(1) == "~" then return "delete_key" end
                 end
-            elseif next2 == "2" then -- F10 (\27[21~) or Insert (\27[2~)
+            elseif next2 == "2" then -- F10 (\27[21~), F9 (\27[20~), or Insert (\27[2~)
                 local next3 = io.read(1)
                 if next3 == "~" then
                     return "insert"
+                elseif next3 == "0" then -- F9
+                    if io.read(1) == "~" then return "options" end
                 elseif next3 == "1" then
                     local next4 = io.read(1)
                     if next4 == "~" then
@@ -163,6 +165,9 @@ function M.get_key()
             elseif next2 == "S" then -- F4
                 return "edit"
             end
+        elseif next1:match("^[A-Za-z]$") then
+            -- [SP_NAV_01_01] Alt+<letter> — terminal sends ESC followed by the letter.
+            return "alt_" .. next1:lower()
         end
         return nil -- Invalid escape sequence
     elseif key == "\13" then -- Enter

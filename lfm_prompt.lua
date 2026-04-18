@@ -230,6 +230,59 @@ function M.confirm(label, layout)
     end
 end
 
+-- [SP_DSP_02_01] Single-row menu: shows "<label>  (k1) text1  (k2) text2 …  Esc=cancel"
+-- Returns the chosen key string, or nil on Escape. Other keys are ignored.
+function M.menu(label, items, layout)
+    local parts = {}
+    for _, it in ipairs(items) do
+        parts[#parts + 1] = "(" .. it.key .. ") " .. it.text
+    end
+    local content = label .. "  " .. table.concat(parts, "  ") .. "  Esc=cancel"
+
+    local w = lfm_str.get_string_width(content)
+    if w > layout.cols then
+        -- Truncate codepoint-by-codepoint so we don't slice a UTF-8 sequence.
+        local keep = 0
+        local acc_w = 0
+        local i = 1
+        while i <= #content do
+            local b = content:byte(i)
+            local n = utf8_expected_length(b)
+            local ch = content:sub(i, i + n - 1)
+            local cw = lfm_str.get_string_width(ch)
+            if acc_w + cw + 1 > layout.cols then break end
+            acc_w = acc_w + cw
+            keep = i + n - 1
+            i = i + n
+        end
+        content = content:sub(1, keep) .. "~"
+        w = lfm_str.get_string_width(content)
+    end
+
+    lfm_scr.move_cursor(layout.row, 1)
+    lfm_scr.set_bg_color("black")
+    lfm_scr.set_color("bright_white")
+    lfm_scr.draw_text(content)
+    local pad = layout.cols - w
+    if pad > 0 then
+        lfm_scr.set_color("white")
+        lfm_scr.draw_text(string.rep(" ", pad))
+    end
+    lfm_scr.reset_colors()
+    io.flush()
+
+    -- Build an allowed-keys lookup once.
+    local allowed = {}
+    for _, it in ipairs(items) do allowed[it.key] = true end
+
+    while true do
+        local key = lfm_sys.get_key()
+        if key == "escape" then return nil end
+        if key and allowed[key] then return key end
+        -- ignore all other keys
+    end
+end
+
 -- [SP_OPS_02_07] Error banner — red on the hints row, dismissed by any key.
 function M.show_error(message, layout)
     lfm_scr.move_cursor(layout.row, 1)

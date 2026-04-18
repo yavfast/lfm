@@ -11,6 +11,8 @@ All docs were produced by the [onboard procedure](../.dev_flow/onboard/) from th
 | **Platform constraints** — IoT/BusyBox/plain-Lua target | [C_PLT](./platform_constraints.concept.md) | [SP_PLT](./platform_constraints.sp.md) | — |
 | **Feature roadmap** — backlog of candidate features with IoT feasibility | — | — | [PL_RMP](./roadmap.plan.md) |
 | **File operations** — Area A: copy/move/delete/mkdir, multi-select, panel sync | [C_OPS](./file_operations.concept.md) | [SP_OPS](./file_operations.sp.md) | [PL_OPS](./file_operations.plan.md) |
+| **Display options** — Area C: per-panel sort modes + hidden-files toggle via F9 menu | [C_DSP](./display_options.concept.md) | [SP_DSP](./display_options.sp.md) | [PL_DSP](./display_options.plan.md) |
+| **Quick navigation** — `Alt+<letter>` first-char jump (FAR-style) | [C_NAV](./quick_nav.concept.md) | [SP_NAV](./quick_nav.sp.md) | [PL_NAV](./quick_nav.plan.md) |
 
 > **Read [C_PLT](./platform_constraints.concept.md) before designing any new feature** — it bounds what's acceptable (no LuaRocks, no FFI, BusyBox-compatible shell flags only).
 

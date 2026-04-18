@@ -26,7 +26,11 @@ local screen_layout = {
     terminal_start_row = 0       -- Will be calculated
 }
 
--- Panel data structure. `selected` is a set keyed by item name — see [SP_OPS_01_01].
+-- Panel data structure.
+--   `selected`       — set keyed by item name [SP_OPS_01_01].
+--   `sort_by`        — "name" | "ext" | "size" | "date" [SP_DSP_01_01].
+--   `sort_desc`      — descending direction flag [SP_DSP_01_01].
+--   `show_hidden`    — include dotfile entries [SP_DSP_01_01].
 local function new_panel()
     return {
         current_dir = ".",
@@ -37,6 +41,9 @@ local function new_panel()
         view_width = 0,
         view_height = 0,
         selected = {},
+        sort_by = "name",
+        sort_desc = false,
+        show_hidden = false,
     }
 end
 
@@ -59,20 +66,57 @@ local function count_set(t)
     return n
 end
 
-local function sort_items(items)
-    table.sort(items, function(a, b)
-        -- ".." always first
+-- Extract the extension after the last dot; "" for names with no dot.
+-- A leading dot is skipped so that ".hidden" has no ext (it's a dotfile name,
+-- not an extension), while "a.tar.gz" still has ext "gz".
+local function ext_of(name)
+    local head = (name:sub(1, 1) == ".") and name:sub(2) or name
+    return (head:match("%.([^.]+)$") or ""):lower()
+end
+
+-- [SP_DSP_02_02] Return a table.sort comparator using (mode, desc).
+-- Invariants: ".." first; dirs before files; name-lower tiebreaker always asc.
+local function sort_comparator(mode, desc)
+    return function(a, b)
         if a.name == ".." then return true end
         if b.name == ".." then return false end
-        
-        if a.is_dir and not b.is_dir then
-            return true
-        elseif not a.is_dir and b.is_dir then
-            return false
-        else
-            return a.name:lower() < b.name:lower()
+        if a.is_dir ~= b.is_dir then return a.is_dir end
+
+        local cmp = 0
+        if mode == "size" then
+            local sa, sb = tonumber(a.size) or 0, tonumber(b.size) or 0
+            if sa < sb then cmp = -1 elseif sa > sb then cmp = 1 end
+        elseif mode == "date" then
+            local da, db = tonumber(a.modified) or 0, tonumber(b.modified) or 0
+            if da < db then cmp = -1 elseif da > db then cmp = 1 end
+        elseif mode == "ext" then
+            local ea, eb = ext_of(a.name), ext_of(b.name)
+            if ea < eb then cmp = -1 elseif ea > eb then cmp = 1 end
+        else -- "name" (default)
+            local na, nb = a.name:lower(), b.name:lower()
+            if na < nb then cmp = -1 elseif na > nb then cmp = 1 end
         end
-    end)
+        if desc then cmp = -cmp end
+        if cmp ~= 0 then return cmp < 0 end
+        -- Deterministic tiebreaker: name ascending.
+        return a.name:lower() < b.name:lower()
+    end
+end
+
+-- [SP_DSP_02_03] Drop dotfile entries (except ".." synthetic) when show_hidden is false.
+local function filter_hidden(items, show_hidden)
+    if show_hidden then return items end
+    local out = {}
+    for _, it in ipairs(items) do
+        if it.name == ".." or it.name:sub(1, 1) ~= "." then
+            out[#out + 1] = it
+        end
+    end
+    return out
+end
+
+local function sort_items(panel)
+    table.sort(panel.items, sort_comparator(panel.sort_by, panel.sort_desc))
 end
 
 -- Function to update scroll position
@@ -92,7 +136,8 @@ local function draw_hints()
     lfm_scr.move_cursor(hint_row, 1)
     lfm_scr.draw_text_colored("gray", string.rep("-", screen_info.view_width))
     lfm_scr.move_cursor(hint_row + 1, 1)
-    lfm_scr.draw_text_colored("gray", " F3:View F4:Edit F5:Copy F6:Move F7:Mkdir F8:Del Ins:Mark *:Inv =:Sync ^U:Swap Tab:Switch F10:Quit")
+    local hints = " F3:View F4:Edit F5:Copy F6:Move F7:Mkdir F8:Del F9:Opts F10:Quit"
+    lfm_scr.draw_text_colored("gray", lfm_str.pad_string(hints, screen_info.view_width, true))
 end
 
 -- Build a position-marker string with optional selection count — [SP_OPS_04_02].
@@ -351,9 +396,9 @@ local function open_dir(panel, target_path, prev_dir)
     -- Ensure root directory is represented as "/"
     panel.current_dir = target_path == "" and "/" or target_path
     panel.absolute_path = lfm_files.get_absolute_path(panel.current_dir)
-    -- Load new directory items
-    panel.items = lfm_files.get_directory_items(panel.current_dir)
-    sort_items(panel.items)
+    -- Load new directory items (respects panel's show_hidden and sort preferences).
+    panel.items = filter_hidden(lfm_files.get_directory_items(panel.current_dir), panel.show_hidden)
+    sort_items(panel)
     -- Restore position if exists, otherwise start from beginning
     if prev_dir then
         local prev_name = lfm_files.get_basename(prev_dir)
@@ -440,6 +485,81 @@ local function inactive()
     return (active_panel == 1) and panel2 or panel1
 end
 
+-- [SP_DSP_03_04] Render the current sort state as "<mode><arrow>".
+local function sort_label(panel)
+    local arrow = panel.sort_desc and "\226\134\147" or "\226\134\145"  -- ↓ / ↑ in UTF-8
+    return panel.sort_by .. arrow
+end
+
+-- [SP_DSP_03_03] Sort sub-menu. Returns true if an action was taken (parent
+-- menu should close) or false if the user hit Esc (parent should re-open).
+local function handle_sort_menu(panel)
+    local label = "Sort by (current " .. sort_label(panel) .. "):"
+    local items = {
+        { key = "n", text = "name" },
+        { key = "e", text = "ext" },
+        { key = "s", text = "size" },
+        { key = "d", text = "date" },
+        { key = "r", text = "reverse" },
+    }
+    local ch = lfm_prompt.menu(label, items, prompt_layout())
+    if ch == nil then return false end
+    local mode_map = { n = "name", e = "ext", s = "size", d = "date" }
+    if ch == "r" then
+        panel.sort_desc = not panel.sort_desc
+    else
+        local new_mode = mode_map[ch]
+        if new_mode == panel.sort_by then
+            panel.sort_desc = not panel.sort_desc
+        else
+            panel.sort_by = new_mode
+            panel.sort_desc = false
+        end
+    end
+    -- Capture the cursor's current item BEFORE sort so we can restore by name.
+    local cur = panel.items[panel.selected_item]
+    sort_items(panel)
+    if cur then
+        for i, it in ipairs(panel.items) do
+            if it.name == cur.name then panel.selected_item = i; break end
+        end
+    end
+    return true
+end
+
+-- [SP_DSP_03_02] Top-level options menu. Loops so that Esc from a sub-menu
+-- re-opens this parent; any direct action closes.
+local function handle_display_menu(panel)
+    while true do
+        local items = {
+            { key = "1", text = "Sort: " .. sort_label(panel) },
+            { key = "2", text = "Hidden: " .. (panel.show_hidden and "on" or "off") },
+            { key = "3", text = "Sync paths" },
+        }
+        local ch = lfm_prompt.menu("Options:", items, prompt_layout())
+        if ch == nil then return end
+        if ch == "1" then
+            if handle_sort_menu(panel) then return end
+            -- else: loop → re-render parent
+        elseif ch == "2" then
+            panel.show_hidden = not panel.show_hidden
+            -- Toggle requires re-fetching; refresh both panels (other panel
+            -- may be in same directory and benefits from consistent view).
+            refresh_panels()
+            return
+        elseif ch == "3" then
+            -- Sync: inactive panel adopts the active panel's path. Short-circuit
+            -- when paths already match so we don't clobber the inactive panel's
+            -- multi-selection (open_dir always resets panel.selected).
+            local inact = inactive()
+            if inact.current_dir ~= panel.current_dir then
+                open_dir(inact, panel.current_dir)
+            end
+            return
+        end
+    end
+end
+
 -- Wrap any op that displays modal UI: ensures the full frame is repainted
 -- afterwards and that a failure surfaces as an on-screen error.
 local function after_op(result)
@@ -508,16 +628,6 @@ local function handle_navigation_key(key)
             current_panel.selected_item = math.min(#current_panel.items, current_panel.selected_item + 1)
         end
         return true
-    elseif key == "*" then -- [SP_OPS_03_02] invert selection on active panel
-        for _, it in ipairs(current_panel.items) do
-            if it.name ~= ".." then
-                current_panel.selected[it.name] = (not current_panel.selected[it.name]) or nil
-            end
-        end
-        return true
-    elseif key == "=" then -- [SP_OPS_03_02] sync inactive panel to active's path
-        open_dir(inactive(), current_panel.current_dir)
-        return true
     elseif key == "swap_panels" then -- [SP_OPS_03_01] Ctrl+U swap
         local p1, p2 = panel1, panel2
         for k, v in pairs(p2) do local t = p1[k]; p1[k] = v; p2[k] = t end
@@ -571,6 +681,28 @@ local function handle_navigation_key(key)
             refresh_panels()
         end
         return true
+    elseif key == "options" then -- F9 [SP_DSP_03_02]
+        handle_display_menu(current_panel)
+        return true
+    elseif type(key) == "string" and key:sub(1, 4) == "alt_" then
+        -- [SP_NAV_02_01] Alt+letter: jump to next item starting with that letter.
+        local letter = key:sub(5)
+        if #letter == 1 and letter:match("[a-z]") then
+            local n = #current_panel.items
+            if n > 0 then
+                local start = current_panel.selected_item + 1
+                for offset = 0, n - 1 do
+                    local i = ((start - 1 + offset) % n) + 1
+                    local it = current_panel.items[i]
+                    if it and it.name ~= ".." and it.name:sub(1, 1) ~= "."
+                        and it.name:sub(1, 1):lower() == letter then
+                        current_panel.selected_item = i
+                        break
+                    end
+                end
+            end
+        end
+        return true
     end
 
     return false
@@ -582,13 +714,13 @@ local function main()
     os.execute("clear")
     
     -- Initial load of directory items for both panels
-    panel1.items = lfm_files.get_directory_items(panel1.current_dir)
-    sort_items(panel1.items)
+    panel1.items = filter_hidden(lfm_files.get_directory_items(panel1.current_dir), panel1.show_hidden)
+    sort_items(panel1)
     panel1.absolute_path = lfm_files.get_absolute_path(panel1.current_dir)
 
     panel2.current_dir = panel1.current_dir -- Start panel2 in the same directory
-    panel2.items = lfm_files.get_directory_items(panel2.current_dir)
-    sort_items(panel2.items)
+    panel2.items = filter_hidden(lfm_files.get_directory_items(panel2.current_dir), panel2.show_hidden)
+    sort_items(panel2)
     panel2.absolute_path = lfm_files.get_absolute_path(panel2.current_dir)
     
     -- Initialize terminal for raw input
@@ -604,7 +736,11 @@ local function main()
             if key == "quit" then -- F10
                 break
             else
-                if lfm_terminal.has_command() or not handle_navigation_key(key) then
+                -- [SP_NAV_01_02] Alt+<letter> is always a panel action, even when
+                -- the terminal widget has pending command text.
+                local force_panel = type(key) == "string" and key:sub(1, 4) == "alt_"
+                local panel_try = force_panel or not lfm_terminal.has_command()
+                if not panel_try or not handle_navigation_key(key) then
                     -- Try terminal navigation first
                     if not lfm_terminal.handle_navigation_key(key) then
                         -- All other characters go to terminal

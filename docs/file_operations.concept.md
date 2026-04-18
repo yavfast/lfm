@@ -31,8 +31,8 @@ Shell-out over re-implementation. On IoT hosts we trust BusyBox `cp -r -f`, `mv 
 **IN SCOPE:**
 
 - **A1** — F5 copy, F6 move/rename, F7 mkdir, F8/Delete delete.
-- **A2** — Insert toggles multi-select, `*` inverts selection on the active panel.
-- **A3** — `=` copies the active panel's path to the inactive panel, `Ctrl+U` swaps both panels' state.
+- **A2** — Insert toggles multi-select.
+- **A3** — `Ctrl+U` swaps both panels' state. Copying the active panel's path to the inactive panel is exposed via the F9 "Options" menu (see [C_DSP](./display_options.concept.md)), not as a direct hotkey.
 
 **OUT OF SCOPE** (future promotion from roadmap):
 
@@ -80,12 +80,6 @@ F8 / Delete
 
 Insert
   toggle selection of cursor item → cursor down
-
-*
-  invert selection across active panel (excluding ..)
-
-=
-  inactive_panel.current_dir = active_panel.current_dir → reload
 
 Ctrl+U
   swap panel1 and panel2 (paths, selections, cursor, scroll)
@@ -181,3 +175,4 @@ No new color enum in `lfm_scr` — `yellow` already exists.
 | Date | Change |
 |------|--------|
 | 2026-04-18 | Initial draft — captures Area A from [PL_RMP](./roadmap.plan.md) at priority P0. |
+| 2026-04-18 | Removed printable-character hotkeys `*` (invert selection) and `=` (sync paths). `*` dropped entirely; sync relocated to the F9 menu (see [C_DSP](./display_options.concept.md)). Rationale: printable keys conflict with terminal-widget command input. |
